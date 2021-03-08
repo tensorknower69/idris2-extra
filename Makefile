@@ -1,4 +1,9 @@
 all: libextra.so
 
 libextra.so: libextra.c
-	gcc -shared -o $@ $^
+	gcc -Wall -shared -o $@ $^
+
+.PHONY: clean
+
+clean:
+	rm -f libextra.so
