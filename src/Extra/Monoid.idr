@@ -2,7 +2,6 @@ module Extra.Monoid
 
 import Data.List
 import Data.List1
-o
 
 public export
 merge : Monoid m => (m, m) -> m
