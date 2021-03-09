@@ -119,29 +119,33 @@ accept (MkSocket sock) = do
     | Left err => pure1 (False # (MkSocket sock))
   pure1 $ True # (MkSocket sock # MkSocket sock')
 
-export
-data SockBuf : (size : Nat) -> Type where
-  MkSockBuf : (bptr : BufPtr) -> SockBuf size
+-- TODO: probably redundant
+-- export
+-- data SockBuf : (size : Nat) -> Type where
+--   MkSockBuf : (bptr : BufPtr) -> SockBuf size
+-- 
+-- export
+-- implementation ByteAccess SockBuf where
+--   allocate size = do
+--     bptr <- liftIO1 $ sock_alloc (cast $ natToInteger size)
+--     pure1 $ MkSockBuf bptr
+-- 
+--   free (MkSockBuf bptr) = liftIO1 $ sock_free bptr
+-- 
+--   setBits8 index bits8 (MkSockBuf bptr) = do
+--     let offset = cast {to = Int} $ finToInteger index
+--     let int = cast {to = Int} bits8
+--     liftIO1 $ sock_poke bptr offset int
+--     pure1 $ MkSockBuf bptr
+-- 
+--   getBits8 index (MkSockBuf bptr) = do
+--     int <- liftIO1 $ sock_peek bptr (cast $ finToInteger index)
+--     let bits8 = cast {to = Bits8} int
+--     pure1 $ MkSockBuf bptr # bits8
+-- 
+--   setBits8s
 
-export
-implementation ByteAccess SockBuf where
-  allocate size = do
-    bptr <- liftIO1 $ sock_alloc (cast $ natToInteger size)
-    pure1 $ MkSockBuf bptr
-
-  free (MkSockBuf bptr) = liftIO1 $ sock_free bptr
-
-  setBits8 index bits8 (MkSockBuf bptr) = do
-    let offset = cast {to = Int} $ finToInteger index
-    let int = cast {to = Int} bits8
-    liftIO1 $ sock_poke bptr offset int
-    pure1 $ MkSockBuf bptr
-
-  getBits8 index (MkSockBuf bptr) = do
-    int <- liftIO1 $ sock_peek bptr (cast $ finToInteger index)
-    let bits8 = cast {to = Bits8} int
-    pure1 $ MkSockBuf bptr # bits8
-
+-- TODO: for some reason using String null-terminates
 export
 send : (LinearIO io)
   => (1 sock : Socket family type protocol Open)
@@ -153,6 +157,7 @@ send (MkSocket sock) (MkAPtr ptr) = do
   pure1 ((MkAPtr ptr, True) # MkSocket sock)
 
 -- TODO: optimize
+-- TODO: for some reason using String null-terminates
 export
 recv
   : LinearIO io
