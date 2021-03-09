@@ -8,7 +8,6 @@ import Extra.Vect
 import Extra.Applicative
 import Extra.Binary
 import Extra.String
--- count n p = sequence (replicate n p)
 
 public export
 interface MonoFoldable full item | full where
