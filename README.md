@@ -8,3 +8,23 @@ I'm planning to add JSON parser, HTML parser, minimal af HTTP client, **insecure
 Once TLS and HTTP are implemented, I will be porting `tensorknower69/nhentai` and other stuff to Idris2 asap since they are *useful*.
 
 PRs are welcomed!!!!!111111 If any..., I mean Idris2 is still not well-known yet. How do I make friends in/at/on school
+
+## Questions I have and I am afraid to ask
+
+- How do I rewrite linear values with `rewrite` `in` syntax (Idris 2, version 0.3.0-1d96dd2bd)
+
+  Currently I am using `rewrite1` from `Extra.Proof`
+  This problem has plagued `Extra.Bytes`
+  
+- Why `String` with `\0` behaves so weirdly (Idris 2, version 0.3.0-1d96dd2bd)
+
+  When doing `recv` using `Network.Socket` with sockets and the received message contains a null char, the length of the resultant String is up to the first null char. Is this a bug?
+  
+- Why use `Int` in unseemingly inappropriate situations? Or there are reasons for doing that (Idris 2, version 0.3.0-1d96dd2bd)
+
+  Ex. `Data.Buffer.bufferData : HasIO io => Buffer -> io (List Int)` 
+  Shouldn't it be `bufferData : HasIO io => Buffer -> io (List Bits8)`?
+
+- Is there a more elegant way to deal with lazyness of `Applicative`, `Alternative` and more  (Idris 2, version 0.3.0-1d96dd2bd)
+
+  See `Extra.Lazy` and `Extra.Parser`. There are situations where applicatives with laziness must be used or otherwise the program will halt at compiletime/runtime. But according to https://github.com/idris-lang/Idris2/pull/867, it seems as if having designated interfaces isn't the answer. I'm puzzled.
