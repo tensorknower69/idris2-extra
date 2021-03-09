@@ -13,8 +13,7 @@ PRs are welcomed!!!!!111111 If any..., I mean Idris2 is still not well-known yet
 
 - How do I rewrite linear values with `rewrite` `in` syntax (Idris 2, version 0.3.0-1d96dd2bd)
 
-  Currently I am using `rewrite1` from `Extra.Proof`
-  This problem has plagued `Extra.Bytes`
+  Currently I am using `rewrite1` from `Extra.Proof`. This problem has plagued `Extra.Bytes`. I'm having the vibe that `rewrite` on linear values is violating fundamental logic.
   
 - Why `String` with `\0` behaves so weirdly (Idris 2, version 0.3.0-1d96dd2bd)
 
