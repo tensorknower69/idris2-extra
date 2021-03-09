@@ -1,0 +1,35 @@
+package extra
+
+authors = "tensorknower69"
+version = "0.0.1"
+readme = "README.md"
+
+homepage = "https://github.com/tensorknower69/idris2-extra"
+sourceloc = "https://github.com/tensorknower69/idris2-extra.git"
+bugtracker = "https://github.com/tensorknower69/idris2-extra/issues"
+
+license = "MIT (refer to LICENSE file)"
+brief = "tensorknower69's personal library"
+
+modules
+  = Extra.Network
+  , Extra.Parser
+  , Extra.Lazy
+  , Extra.Monoid
+  , Extra.Proof
+  , Extra.File
+  , Extra.String
+  , Extra.Pair
+  , Extra.Streaming
+  , Extra.Nat
+  , Extra.FFI
+  , Extra.Binary
+  , Extra.Bytes
+
+sourcedir = "src"
+
+depends = base, network, contrib
+
+-- how
+-- makefile = "Makefile"
+-- objs = "libextra.so"
