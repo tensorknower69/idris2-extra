@@ -1,23 +1,9 @@
-module Extra.Lazy
+module Extra.Alternative
 
 import Data.List1
+import public Extra.Applicative
 
--- TODO: This module doesn't feel right to me
-
-infixl 3 <*>|, *>|, <*|
 infixl 2 <|>|
-
-public export
-interface Applicative f => LazyApplicative f where
-  (<*>|) : f (a -> b) -> Lazy (f a) -> f b
-
-export
-(*>|) : LazyApplicative f => f a -> Lazy (f b) -> f b
-a *>| b = map (const id) a <*>| b
-
-export
-(<*|) : LazyApplicative f => f a -> Lazy (f b) -> f a
-a <*| b = map (\a => const a) a <*>| b
 
 public export
 interface Alternative f => LazyAlternative f where
@@ -38,3 +24,7 @@ sepByLazy parser seperator = (::) <$> parser <*>| ((seperator *>| sepByLazy pars
 export
 sepBy1Lazy : (LazyApplicative f, LazyAlternative f) => f a -> f b -> f (List1 a)
 sepBy1Lazy parser seperator = (:::) <$> parser <*>| ((seperator *> sepByLazy parser seperator) <|> pure neutral)
+
+export
+manyTill : (LazyApplicative f, LazyAlternative f) => f a -> f b -> f (List a)
+manyTill parser end = (end $> Nil) <|>| ((::) <$> parser <*>| manyTill parser end)

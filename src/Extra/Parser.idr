@@ -1,15 +1,14 @@
 module Extra.Parser
 
-import Extra.Lazy
-import Extra.String
 import Data.List
 import Data.List1
 import Data.String
+import Extra.Alternative
+import Extra.Vect
+import Extra.Applicative
 import Extra.Binary
-
-export
-count : Monad m => (n : Nat) -> m a -> m (List a)
-count n p = sequence (replicate n p)
+import Extra.String
+-- count n p = sequence (replicate n p)
 
 public export
 interface MonoFoldable full item | full where
@@ -111,13 +110,17 @@ data Parser : (input_type: Type) -> (result : Type) -> Type where
   Fail : (msg : String) -> Parser i r
   More : (on_eof : Lazy (Parser i r)) -> (on_feed : (i -> Parser i r)) -> Parser i r
 
-infixl 0 <?>
+-- core
 
 export
-(<?>) : Parser i r -> String -> Parser i r
-(Fail msg') <?> msg = Fail $ msg <+> "." <+> msg'
-(Done leftover result) <?> _ = Done leftover result
-(More on_eof on_feed) <?> msg = More (on_eof <?> msg) (\i => on_feed i <?> msg)
+toEither : Parser i r -> Either String (i, r)
+toEither (Done i r) = Right (i, r)
+toEither (Fail msg) = Left msg
+toEither (More _ _) = Left "partial"
+
+export
+toEither_ : Parser i r -> Either String r
+toEither_ = map snd . toEither
 
 export
 feed : Semigroup i => i -> Parser i r -> Parser i r
@@ -130,6 +133,14 @@ feedEof : Parser i r -> Parser i r
 feedEof (Done leftover result) = Done leftover result
 feedEof (More on_eof _) = on_eof
 feedEof (Fail msg) = Fail msg
+
+infixl 0 <?>
+
+export
+(<?>) : Parser i r -> String -> Parser i r
+(Fail msg') <?> msg = Fail $ msg <+> "." <+> msg'
+(Done leftover result) <?> _ = Done leftover result
+(More on_eof on_feed) <?> msg = More (on_eof <?> msg) (\i => on_feed i <?> msg)
 
 export
 Functor (Parser i) where
@@ -167,6 +178,8 @@ mutual
     empty = Fail "empty"
     a <|> b = a <|>| b
 
+-- basic
+
 export
 anyToken : MonoListLike full item => Parser full item
 anyToken = More (Fail "anyToken") $ \i =>
@@ -183,16 +196,47 @@ satisfy predicate = More (Fail "satisfy") $ \i =>
       if predicate token then Done leftover token else Fail "satisfy"
 
 export
-manyTill : MonoListLike full item => Parser full a -> Parser full b -> Parser full (List a)
-manyTill parser end = (end $> Nil) <|>| ((::) <$> parser <*>| manyTill parser end)
-
-export
 eof : Monoid i => Parser i ()
 eof = More (Done neutral ()) (\_ => Fail "eof")
 
 export
 token : (MonoListLike full item, Eq item) => item -> Parser full item
 token c = satisfy (c ==) <?> "token"
+
+export
+lookAhead : MonoListLike full item => Parser full item
+lookAhead = More (Fail "lookAhead") $ \full =>
+  case isNonEmpty full of
+    No _ => lookAhead
+    Yes _ => case uncons full of
+      (x, xs) => Done full x
+
+export
+notFollowedBy : Monoid full => Parser full a -> Parser full ()
+notFollowedBy = lookAheadNotInto neutral
+  where
+  lookAheadNotInto : full -> Parser full a -> Parser full ()
+  lookAheadNotInto i parser =
+    case parser of
+      Fail _ => Done i ()
+      More on_eof on_feed => More (lookAheadNotInto i on_eof) (\i' => lookAheadNotInto (i <+> i') (on_feed i'))
+      Done _ _ => Fail "notFollowedBy"
+
+-- show
+
+export
+showWith : Show i => ((i -> Parser i r) -> String) -> (r -> String) -> Parser i r -> String
+showWith show_on_feed show_result parser =
+  case parser of
+    Done i r => "Done " <+> show i <+> " " <+> show_result r
+    More on_eof on_feed => "More " <+> show_on_feed on_feed  <+> " or else " <+> showWith show_on_feed show_result on_eof
+    Fail msg => "Fail " <+> msg
+
+export
+(Show i, Show r) => Show (Parser i r) where
+  show = showWith (const "...") show
+
+-- char stuff
 
 export
 lower : (MonoListLike full Char) => Parser full Char
@@ -230,26 +274,7 @@ export
 octDigit : (MonoListLike full Char) => Parser full Char
 octDigit = satisfy isHexDigit
 
-export
-toEither : Parser i r -> Either String (i, r)
-toEither (Done i r) = Right (i, r)
-toEither (Fail msg) = Left msg
-toEither (More _ _) = Left "partial"
-
-export
-toEither_ : Parser i r -> Either String r
-toEither_ = map snd . toEither
-
-infixl 1 >$=
--- TODO: can do without (Monoid full)
-(>$=) : (Monoid full, MonoListLike full item) => Parser full a -> (a -> Either String b) -> Parser full b
-m >$= f = map f m >>= \r => case r of
-  Left msg => Fail msg
-  Right r => pure r
-
-export
-bits8BinPadToLen : MonoListLike full Bits8 => Parser full Bin
-bits8BinPadToLen = (padToLen 8 . toBin . cast) <$> anyToken
+-- binary stuff
 
 export
 zro : MonoListLike full Digit => Parser full Digit
@@ -259,6 +284,20 @@ export
 one : MonoListLike full Digit => Parser full Digit
 one = token I
 
+infixl 1 >$=
+-- TODO: can do without (Monoid full)
+export
+(>$=) : (Monoid full, MonoListLike full item) => Parser full a -> (a -> Either String b) -> Parser full b
+m >$= f = map f m >>= \r => case r of
+  Left msg => Fail msg
+  Right r => pure r
+
+-- utf8 stuff, TODO: better implementation
+
+export
+bits8BinPadToLen : MonoListLike full Bits8 => Parser full Bin
+bits8BinPadToLen = (padToLen 8 . toBin . cast) <$> anyToken
+
 export
 utf8Code : (Monoid full, MonoListLike full Bits8) => Parser full Char
 utf8Code = utf8Code4 <|> utf8Code3 <|> utf8Code2 <|> utf8Code1
@@ -267,66 +306,35 @@ utf8Code = utf8Code4 <|> utf8Code3 <|> utf8Code2 <|> utf8Code1
   binToChar = chr . toInt
 
   utf8AtomBin : Parser full Bin
-  utf8AtomBin = bits8BinPadToLen >$= \r => toEither_ $ feed r $ (count 6 anyToken <* zro <* one)
+  utf8AtomBin = bits8BinPadToLen >$= \r => toEither_ $ feed r $ ((toList <$> count 6 anyToken) <* zro <* one)
   
   utf8Code1 : Parser full Char
   utf8Code1 = (\a => binToChar a)
     <$> guard
     where
     guard : Parser full Bin
-    guard = bits8BinPadToLen >$= \r => toEither_ $ feed r $ (count 7 anyToken <* zro)
+    guard = bits8BinPadToLen >$= \r => toEither_ $ feed r $ ((toList <$> count 7 anyToken) <* zro)
   
   utf8Code2 : Parser full Char
   utf8Code2 = (\a, b => binToChar $ b <+> a)
     <$> guard <*> utf8AtomBin
     where
     guard : Parser full Bin
-    guard = bits8BinPadToLen >$= \r => toEither_ $ feed r $ (count 5 anyToken <* zro <* one <* one)
+    guard = bits8BinPadToLen >$= \r => toEither_ $ feed r $ ((toList <$> count 5 anyToken) <* zro <* one <* one)
   
   utf8Code3 : Parser full Char
   utf8Code3 = (\a, b, c => binToChar $ c <+> b <+> a)
     <$> guard <*> utf8AtomBin <*> utf8AtomBin
     where
     guard : Parser full Bin
-    guard = bits8BinPadToLen >$= \r => toEither_ $ feed r $ (count 4 anyToken <* zro <* one <* one <* one)
+    guard = bits8BinPadToLen >$= \r => toEither_ $ feed r $ ((toList <$> count 4 anyToken) <* zro <* one <* one <* one)
   
   utf8Code4 : Parser full Char
   utf8Code4 = (\a, b, c, d => binToChar $ d <+> c <+> b <+> a)
     <$> guard <*> utf8AtomBin <*> utf8AtomBin <*> utf8AtomBin
     where
     guard : Parser full Bin
-    guard = bits8BinPadToLen >$= \r => toEither_ $ feed r $ (count 3 anyToken <* zro <* one <* one <* one <* one)
-
-export
-lookAhead : MonoListLike full item => Parser full item
-lookAhead = More (Fail "lookAhead") $ \full =>
-  case isNonEmpty full of
-    No _ => lookAhead
-    Yes _ => case uncons full of
-      (x, xs) => Done full x
-
-export
-notFollowedBy : Monoid full => Parser full a -> Parser full ()
-notFollowedBy = lookAheadNotInto neutral
-  where
-  lookAheadNotInto : full -> Parser full a -> Parser full ()
-  lookAheadNotInto i parser =
-    case parser of
-      Fail _ => Done i ()
-      More on_eof on_feed => More (lookAheadNotInto i on_eof) (\i' => lookAheadNotInto (i <+> i') (on_feed i'))
-      Done _ _ => Fail "notFollowedBy"
-
-export
-showWith : Show i => ((i -> Parser i r) -> String) -> (r -> String) -> Parser i r -> String
-showWith show_on_feed show_result parser =
-  case parser of
-    Done i r => "Done " <+> show i <+> " " <+> show_result r
-    More on_eof on_feed => "More " <+> show_on_feed on_feed  <+> " or else " <+> showWith show_on_feed show_result on_eof
-    Fail msg => "Fail " <+> msg
-
-export
-(Show i, Show r) => Show (Parser i r) where
-  show = showWith (const "...") show
+    guard = bits8BinPadToLen >$= \r => toEither_ $ feed r $ ((toList <$> count 3 anyToken) <* zro <* one <* one <* one <* one)
 
 export
 charToUtf8 : Char -> List Bits8

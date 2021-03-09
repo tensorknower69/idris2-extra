@@ -26,7 +26,7 @@ PRs are welcomed!!!!!111111 If any..., I mean Idris2 is still not well-known yet
 
 - Is there a more elegant way to deal with lazyness of `Applicative`, `Alternative` and more  (Idris 2, version 0.3.0-1d96dd2bd)
 
-  See `Extra.Lazy` and `Extra.Parser`. There are situations where applicatives with laziness must be used or otherwise the program will halt at compiletime/runtime. But according to https://github.com/idris-lang/Idris2/pull/867, it seems as if having designated interfaces isn't the answer. I'm puzzled.
+  See `Extra.Parser`. There are situations where applicatives with laziness must be used or otherwise the program will halt at compiletime/runtime. But according to https://github.com/idris-lang/Idris2/pull/867, it seems as if having designated interfaces isn't the answer. I'm puzzled.
 
 - Incomplete ipkg implementation?
 
