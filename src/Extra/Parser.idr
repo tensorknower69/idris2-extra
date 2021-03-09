@@ -103,13 +103,25 @@ MonoListLike String Char where
   null "" = True
   null _ = False
 
-public export
+export
 data Parser : (input_type: Type) -> (result : Type) -> Type where
   Done : (leftover : i) -> (result : r) -> Parser i r
   Fail : (msg : String) -> Parser i r
   More : (on_eof : Lazy (Parser i r)) -> (on_feed : (i -> Parser i r)) -> Parser i r
 
 -- core
+
+export
+fail : String -> Parser i r
+fail = Fail
+
+export
+done : i -> r -> Parser i r
+done = Done
+
+export
+more : (on_eof : Lazy (Parser i r)) -> (on_feed : (i -> Parser i r)) -> Parser i r
+more = More
 
 export
 toEither : Parser i r -> Either String (i, r)
@@ -290,7 +302,6 @@ export
 m >$= f = map f m >>= \r => case r of
   Left msg => Fail msg
   Right r => pure r
-
 -- utf8 stuff, TODO: better implementation
 
 export
