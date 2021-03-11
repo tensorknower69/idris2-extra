@@ -1,6 +1,6 @@
 module Extra.Nat.Prime
 
--- this module is slow af
+-- this module is slow af, but it totally(?) works
 
 import Data.Fin
 import Data.Nat
@@ -104,9 +104,7 @@ primality n@(S (S (S k))) lte_2_n = lemma (trivial (S (S k)) (LTESucc $ LTESucc 
   lemma {x = 0} p = ItIsPrime (realize p)
   lemma {x = (S y)} p@(MkPseudoPrime lte_2_x lte_x_n prf) =
     case decFactor (S (S (S k))) (S (S y)) of
-      -- MkComposite : (x : Nat) -> LTE 2 x -> LT x n -> Factor x n -> Composite n
       ItIsFactor factor => ItIsComposite $ MkComposite (S (S y)) (lteAddRight {m = y} 2) (lteSuccLeft lte_x_n) factor
-      -- strengthen : {l : Nat} -> LTE 2 l -> PseudoPrime (S l) n -> NotFactor l n -> PseudoPrime l n
       ItIsNotFactor not_factor => lemma (strengthen (lteAddRight {m = y} 2) p not_factor)
 
 public export
