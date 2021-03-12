@@ -18,5 +18,5 @@ a <*| b = map (\a => const a) a <*>| b
 
 export
 count : Applicative f => (n : Nat) -> f a -> f (Vect n a)
-count Z p = p $> Nil
+count Z p = pure Nil
 count (S n) p = (::) <$> p <*> count n p
