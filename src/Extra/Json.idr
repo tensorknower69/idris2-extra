@@ -34,17 +34,17 @@ Show Value where
   show MkNull = "null"
 
 export
-oneNineP : MonoListLike i Char => Parser i Integer
+oneNineP : Stream i Char => Parser i Integer
 oneNineP = (token '1' $> 1) <|> (token '2' $> 2) <|> (token '3' $> 3)
        <|> (token '4' $> 4) <|> (token '5' $> 5) <|> (token '6' $> 6)
        <|> (token '7' $> 7) <|> (token '8' $> 8) <|> (token '9' $> 9)
 
 export
-digitP : MonoListLike i Char => Parser i Integer
+digitP : Stream i Char => Parser i Integer
 digitP = (token '0' $> 0) <|> oneNineP
 
 export
-digitsP : MonoListLike i Char => Parser i Integer
+digitsP : Stream i Char => Parser i Integer
 digitsP = map snd helper
   where
   helper : Parser i (Integer, Integer)
@@ -56,18 +56,18 @@ digitsP = map snd helper
       Just (n, ds) => let n' = n * 10 in pure (n', d * n' + ds)
 
 export
-integerP : MonoListLike i Char => Parser i Integer
+integerP : Stream i Char => Parser i Integer
 integerP = do
   b <- option 1 (token '-' $> (-1))
   n <- (token '0' $> 0) <|> digitsP
   pure $ b * n
 
 export
-signP : MonoListLike i Char => Parser i Integer
+signP : Stream i Char => Parser i Integer
 signP = (token '+' $> 1) <|> (token '-' $> -1)
 
 export
-numberP : MonoListLike i Char => Parser i Scientific
+numberP : Stream i Char => Parser i Scientific
 numberP = do
   pre <- integerP
   dec <- option 0 $ token '.' *> digitsP
@@ -77,15 +77,15 @@ numberP = do
   pure $ a + if pre < 0 then -b else b
 
 export
-whitespaceP : MonoListLike i Char => Parser i ()
+whitespaceP : Stream i Char => Parser i ()
 whitespaceP = many space $> ()
 
 export
-boolP : MonoListLike i Char => Parser i Bool
+boolP : Stream i Char => Parser i Bool
 boolP = (string "true" $> True) <|> (string "false" $> False)
 
 export
-escapeP : MonoListLike i Char => Parser i Char
+escapeP : Stream i Char => Parser i Char
 escapeP = (token '\\')
   <|> (token '/')
   <|> (token 'b' $> '\b')
@@ -95,7 +95,7 @@ escapeP = (token '\\')
   <|> (token 't' $> '\t')
 
 export
-characterP : MonoListLike i Char => Parser i Char
+characterP : Stream i Char => Parser i Char
 characterP = notFollowedBy (token '"') *> ((token '\\' *> escapeP) <|> utf16 <|> anyToken)
   where
   hex : Parser i Int
@@ -114,48 +114,48 @@ characterP = notFollowedBy (token '"') *> ((token '\\' *> escapeP) <|> utf16 <|>
         True => pure $ chr $ 0x10000 + (high - 0xD800) * 0x400 + (low - 0xDC00)
 
 export
-charactersP : MonoListLike i Char => Parser i String
+charactersP : Stream i Char => Parser i String
 charactersP = (strCons <$> characterP <*>| charactersP) <|> pure neutral
 
 export
-stringP : MonoListLike i Char => Parser i String
+stringP : Stream i Char => Parser i String
 stringP = token '"' *> charactersP <* token '"'
 
 export
-nullP : MonoListLike i Char => Parser i Value
+nullP : Stream i Char => Parser i Value
 nullP = string "null" $> MkNull
 
 mutual
   export
-  elementP : MonoListLike i Char => Parser i Value
+  elementP : Stream i Char => Parser i Value
   elementP = whitespaceP *> valueP <* whitespaceP
 
   export
-  elementsP : MonoListLike i Char => Parser i (List Value)
+  elementsP : Stream i Char => Parser i (List Value)
   elementsP =
     ((::) <$> elementP <*>| (token ',' *> elementsP))
     <|> (pure <$> elementP)
 
   export
-  memberP : MonoListLike i Char => Parser i (String, Value)
+  memberP : Stream i Char => Parser i (String, Value)
   memberP = (,) <$> (whitespaceP *> stringP <* whitespaceP) <*> (token ':' *> elementP)
 
   export
-  membersP : MonoListLike i Char => Parser i (List (String, Value))
+  membersP : Stream i Char => Parser i (List (String, Value))
   membersP = ((::) <$> memberP <*>| (token ',' *> membersP)) <|> (pure <$> memberP)
 
   export
-  arrayP : MonoListLike i Char => Parser i (List Value)
+  arrayP : Stream i Char => Parser i (List Value)
   arrayP = (token '[' *> (whitespaceP $> []) <* token ']')
        <|> (token '[' *> elementsP <* token ']')
 
   export
-  objectP : MonoListLike i Char => Parser i (List (String, Value))
+  objectP : Stream i Char => Parser i (List (String, Value))
   objectP = (token '{' *> (whitespaceP $> []) <* token '}')
         <|> (token '{' *> membersP <* token '}')
 
   export
-  valueP : MonoListLike i Char => Parser i Value
+  valueP : Stream i Char => Parser i Value
   valueP = whitespaceP *> ((MkString <$> stringP)
                        <|> (MkNumber <$> numberP)
                        <|> (MkArray <$> arrayP))

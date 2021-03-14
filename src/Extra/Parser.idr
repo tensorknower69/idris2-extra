@@ -8,103 +8,23 @@ import Data.List1
 import Data.String
 import Extra.Alternative
 import Extra.Applicative
-import Extra.Char
 import Extra.String
 import Extra.Vect
 
 public export
-interface MonoFoldable full item | full where
-  foldl : (a -> item -> a) -> a -> full -> a
-  foldr : (item -> b -> b) -> b -> full -> b
-
-  foldl f = foldr (flip f)
-  foldr f = foldl (flip f)
-
-public export
-interface (MonoFoldable full item, Monoid full) => MonoListLike full item | full where
-  NonEmpty : full -> Type
-  isNonEmpty : MonoListLike full item => (xs : full) -> Dec (NonEmpty xs)
-
-  singleton : item -> full
-
-  cons : item -> full -> full
-  uncons : (xs : full) -> {auto 0 ok: NonEmpty xs} -> (item, full)
-
-  head : (xs : full) -> {auto 0 ok : NonEmpty xs} -> item
-  tail : (xs : full) -> {auto 0 ok : NonEmpty xs} -> full
-
-  init : (xs : full) -> {auto 0 ok : NonEmpty xs} -> full
-  last : (xs : full) -> {auto 0 ok : NonEmpty xs} -> item
-
-  null : full -> Lazy Bool
-  length : full -> Nat
-
-  toList : full -> List item
-  toList full =
-    case isNonEmpty full of
-      No _ => neutral
-      Yes _ => let (a, as) = uncons full in a :: toList as
-
-  fromList : List item -> full
-  fromList [] = neutral
-  fromList (x :: xs) = cons x (fromList xs)
+interface Monoid state => Stream state item | state where
+  uncons : state -> Maybe (state, item)
 
 export
-{0 a : Type} -> MonoFoldable (List a) a where
-  foldl = Prelude.foldl
-  foldr = Prelude.foldr
+{0 a : Type} -> Stream (List a) a where
+  uncons Nil = Nothing
+  uncons (x :: xs) = Just (xs, x)
 
 export
-{0 a : Type} -> MonoListLike (List a) a where
-  NonEmpty = Data.List.NonEmpty
-
-  isNonEmpty (x :: xs) = Yes IsNonEmpty
-  isNonEmpty Nil = No absurd
-
-  singleton = pure
-
-  cons x xs = x :: xs
-  uncons (x :: xs) = (x, xs)
-
-  head = Data.List.head
-  tail = Data.List.tail
-
-  init = Data.List.init
-  last = Data.List.last
-
-  null = Prelude.null
-  length = Prelude.List.length
-
-export
-MonoFoldable String Char where
-  foldl f a = Extra.Parser.foldl f a . fastUnpack
-
-export
-MonoListLike String Char where
-  NonEmpty xs = Extra.String.NonEmpty (strM xs)
-  isNonEmpty xs = case strM xs of
-    StrNil => No absurd
-    StrCons a as => Yes (believe_me (Extra.String.IsNonEmpty {x = a, xs = as}))
-
-  singleton = Data.String.singleton
-
-  cons a as = strCons a as
-  uncons xs = case strM xs of StrCons a as => (a, as)
-
-  head xs = case strM xs of StrCons a as => a
-  tail xs = case strM xs of StrCons a as => as
-  init xs = case strM xs of
-    StrCons a as => case isNonEmpty as of
-      No _ => singleton a
-      Yes _ => cons a (init as)
-  last xs = case strM xs of
-    StrCons a as => case isNonEmpty as of
-      No _ => a
-      Yes _ => last as
-
-  length = Prelude.String.length
-  null "" = True
-  null _ = False
+Stream String Char where
+  uncons xs = case strM xs of
+    StrCons x xs => Just (xs, x)
+    StrNil => Nothing
 
 export
 data Parser : (input_type: Type) -> (result : Type) -> Type where
@@ -195,48 +115,45 @@ mutual
 -- basic
 
 export
-anyToken : MonoListLike full item => Parser full item
-anyToken = More (Fail "anyToken") $ \i =>
-  case isNonEmpty i of
-    No _ => anyToken
-    Yes _ => let (result, leftover) = uncons i in Done leftover result
+anyToken : Stream state item => Parser state item
+anyToken = More (Fail "anyToken") $ \state =>
+  case uncons state of
+    Nothing => anyToken
+    Just (state', result) => Done state' result
 
 export
-satisfy : MonoListLike full item => (item -> Bool) -> Parser full item
-satisfy predicate = More (Fail "satisfy") $ \i =>
-  case isNonEmpty i of
-    No _ => satisfy predicate
-    Yes _ => let (token, leftover) = uncons i in
-      if predicate token then Done leftover token else Fail "satisfy"
+satisfy : Stream state item => (item -> Bool) -> Parser state item
+satisfy predicate = More (Fail "satisfy") $ \state =>
+  case uncons state of
+    Nothing => satisfy predicate
+    Just (state', token) => if predicate token then Done state' token else Fail "satisfy"
 
 export
 eof : Monoid i => Parser i ()
 eof = More (Done neutral ()) (\_ => Fail "eof")
 
 export
-token : (MonoListLike full item, Eq item) => item -> Parser full item
+token : (Stream state item, Eq item) => item -> Parser state item
 token c = satisfy (c ==) <?> "token"
 
 export
-string : (MonoListLike full item, MonoListLike full' item) => (Eq item) => full' -> Parser full full'
-string xxs = case isNonEmpty xxs of
-  No _ => pure xxs -- pure neutral
-  Yes _ => let (x, xs) = uncons xxs in
-    token x *> string xs *> pure xxs
+string : (Stream state item, Stream state' item) => (Eq item) => state' -> Parser state state'
+string xxs = case uncons xxs of
+  Nothing => pure xxs -- pure neutral
+  Just (xs, x) => token x *> string xs *> pure xxs
 
 export
-lookAhead : MonoListLike full item => Parser full item
-lookAhead = More (Fail "lookAhead") $ \full =>
-  case isNonEmpty full of
-    No _ => lookAhead
-    Yes _ => case uncons full of
-      (x, xs) => Done full x
+lookAhead : Stream state item => Parser state item
+lookAhead = More (Fail "lookAhead") $ \state =>
+  case uncons state of
+    Nothing => lookAhead
+    Just (xs, x) => Done state x
 
 export
-notFollowedBy : Monoid full => Parser full a -> Parser full ()
+notFollowedBy : Monoid state => Parser state a -> Parser state ()
 notFollowedBy = lookAheadNotInto neutral
   where
-  lookAheadNotInto : full -> Parser full a -> Parser full ()
+  lookAheadNotInto : state -> Parser state a -> Parser state ()
   lookAheadNotInto i parser =
     case parser of
       Fail _ => Done i ()
@@ -260,44 +177,44 @@ export
 -- char stuff
 
 export
-lower : (MonoListLike full Char) => Parser full Char
+lower : (Stream state Char) => Parser state Char
 lower = satisfy isLower
 
 export
-upper : (MonoListLike full Char) => Parser full Char
+upper : (Stream state Char) => Parser state Char
 upper = satisfy isUpper
 
 export
-alpha : (MonoListLike full Char) => Parser full Char
+alpha : (Stream state Char) => Parser state Char
 alpha = satisfy isAlpha
 
 export
-alphaNum : (MonoListLike full Char) => Parser full Char
+alphaNum : (Stream state Char) => Parser state Char
 alphaNum = satisfy isAlphaNum
 
 export
-newline : (MonoListLike full Char) => Parser full Char
+newline : (Stream state Char) => Parser state Char
 newline = satisfy isNL
 
 export
-space : (MonoListLike full Char) => Parser full Char
+space : (Stream state Char) => Parser state Char
 space = satisfy isSpace
 
 export
-digit : (MonoListLike full Char) => Parser full (Fin 10)
-digit = More (Fail "digit") $ \i => case isNonEmpty i of
-  No _ => digit
-  Yes _ => let (x, xs) = uncons i in case x of {
+digit : (Stream state Char) => Parser state (Fin 10)
+digit = More (Fail "digit") $ \state => case uncons state of
+  Nothing => digit
+  Just (xs, x) => case x of {
     '0' => Done xs 0; '1' => Done xs 1; '2' => Done xs 2; '3' => Done xs 3; '4' => Done xs 4;
     '5' => Done xs 5; '6' => Done xs 6; '7' => Done xs 7; '8' => Done xs 8; '9' => Done xs 9;
     _ => Fail "digit"
   }
 
 export
-hexDigit : (MonoListLike full Char) => Parser full (Fin 16)
-hexDigit = More (Fail "hexDigit") $ \i => case isNonEmpty i of
-  No _ => hexDigit
-  Yes _ => let (x, xs) = uncons i in case x of {
+hexDigit : (Stream state Char) => Parser state (Fin 16)
+hexDigit = More (Fail "digit") $ \state => case uncons state of
+  Nothing => hexDigit
+  Just (xs, x) => case x of {
     '0' => Done xs 0; '1' => Done xs 1; '2' => Done xs 2; '3' => Done xs 3;
     '4' => Done xs 4; '5' => Done xs 5; '6' => Done xs 6; '7' => Done xs 7;
     '8' => Done xs 8; '9' => Done xs 9; 'A' => Done xs 10; 'B' => Done xs 11;
@@ -308,10 +225,10 @@ hexDigit = More (Fail "hexDigit") $ \i => case isNonEmpty i of
   }
 
 export
-octDigit : (MonoListLike full Char) => Parser full (Fin 8)
-octDigit = More (Fail "octDigit") $ \i => case isNonEmpty i of
-  No _ => octDigit
-  Yes _ => let (x, xs) = uncons i in case x of {
+octDigit : (Stream state Char) => Parser state (Fin 8)
+octDigit = More (Fail "digit") $ \state => case uncons state of
+  Nothing => octDigit
+  Just (xs, x) => case x of {
     '0' => Done xs 0; '1' => Done xs 1; '2' => Done xs 2; '3' => Done xs 3;
     '4' => Done xs 4; '5' => Done xs 5; '6' => Done xs 6; '7' => Done xs 7;
     _ => Fail "octDigit"
