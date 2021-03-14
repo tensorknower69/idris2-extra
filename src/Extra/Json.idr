@@ -96,7 +96,7 @@ escapeP = (token '\\')
 
 export
 characterP : Stream i Char => Parser i Char
-characterP = notFollowedBy (token '"') *> ((token '\\' *> escapeP) <|> utf16 <|> anyToken)
+characterP = notFollowedBy (token '"') *> ((token '\\' *> escapeP) <|> utf16 <|> (notFollowedBy (token '\\') *> anyToken))
   where
   hex : Parser i Int
   hex = (cast . finToInteger) <$> hexDigit
