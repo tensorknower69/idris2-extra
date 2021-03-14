@@ -10,21 +10,29 @@ interface Alternative f => LazyAlternative f where
   (<|>|) : f a -> Lazy (f a) -> f a
 
 export
-manyLazy : (LazyApplicative f, LazyAlternative f) => f a -> f (List a)
-manyLazy p = ((::) <$> p <*>| manyLazy p) <|> pure neutral
+many : (LazyApplicative f, Alternative f) => f a -> f (List a)
+many p = ((::) <$> p <*>| many p) <|> pure neutral
 
 export
-someLazy : (LazyApplicative f, LazyAlternative f) => f a -> f (List1 a)
-someLazy p = (:::) <$> p <*>| manyLazy p
+some : (LazyApplicative f, Alternative f) => f a -> f (List1 a)
+some p = (:::) <$> p <*>| many p
 
 export
-sepByLazy : (LazyApplicative f, LazyAlternative f) => f a -> f b -> f (List a)
-sepByLazy parser seperator = (::) <$> parser <*>| ((seperator *>| sepByLazy parser seperator) <|> pure neutral)
+sepBy : (LazyApplicative f, Alternative f) => f a -> f b -> f (List a)
+sepBy parser seperator = (::) <$> parser <*>| ((seperator *>| sepBy parser seperator) <|> pure neutral)
 
 export
-sepBy1Lazy : (LazyApplicative f, LazyAlternative f) => f a -> f b -> f (List1 a)
-sepBy1Lazy parser seperator = (:::) <$> parser <*>| ((seperator *> sepByLazy parser seperator) <|> pure neutral)
+sepBy1 : (LazyApplicative f, Alternative f) => f a -> f b -> f (List1 a)
+sepBy1 parser seperator = (:::) <$> parser <*>| ((seperator *> sepBy parser seperator) <|> pure neutral)
 
 export
 manyTill : (LazyApplicative f, LazyAlternative f) => f a -> f b -> f (List a)
 manyTill parser end = (end $> Nil) <|>| ((::) <$> parser <*>| manyTill parser end)
+
+export
+option : Alternative f => (defaultsTo : a) -> f a -> f a
+option def f = f <|> pure def
+
+export
+optional : Alternative f => f a -> f (Maybe a)
+optional f = option Nothing (Just <$> f)

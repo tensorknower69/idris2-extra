@@ -20,3 +20,7 @@ export
 count : Applicative f => (n : Nat) -> f a -> f (Vect n a)
 count Z p = pure Nil
 count (S n) p = (::) <$> p <*> count n p
+
+export
+skip : Applicative f => f a -> f ()
+skip p = p $> ()

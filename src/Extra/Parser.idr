@@ -1,13 +1,16 @@
 module Extra.Parser
 
+import Data.Bits
+import Data.DPair
 import Data.List
+import Debug.Trace
 import Data.List1
 import Data.String
 import Extra.Alternative
-import Extra.Vect
 import Extra.Applicative
-import Extra.Binary
+import Extra.Char
 import Extra.String
+import Extra.Vect
 
 public export
 interface MonoFoldable full item | full where
@@ -161,7 +164,7 @@ Functor (Parser i) where
 
 mutual
   export
-  (Semigroup i, Applicative (Parser i)) => LazyApplicative (Parser i) where
+  Monoid i => LazyApplicative (Parser i) where
     (Done leftover f) <*>| p = map f (feed leftover p)
     (More on_eof_f on_feed_f) <*>| p = More (on_eof_f <*>| p) (\i => on_feed_f i <*>| p)
     (Fail msg) <*>| p = Fail msg
@@ -213,6 +216,13 @@ eof = More (Done neutral ()) (\_ => Fail "eof")
 export
 token : (MonoListLike full item, Eq item) => item -> Parser full item
 token c = satisfy (c ==) <?> "token"
+
+export
+string : (MonoListLike full item, MonoListLike full' item) => (Eq item) => full' -> Parser full full'
+string xxs = case isNonEmpty xxs of
+  No _ => pure xxs -- pure neutral
+  Yes _ => let (x, xs) = uncons xxs in
+    token x *> string xs *> pure xxs
 
 export
 lookAhead : MonoListLike full item => Parser full item
@@ -274,100 +284,35 @@ space : (MonoListLike full Char) => Parser full Char
 space = satisfy isSpace
 
 export
-digit : (MonoListLike full Char) => Parser full Char
-digit = satisfy isDigit
+digit : (MonoListLike full Char) => Parser full (Fin 10)
+digit = More (Fail "digit") $ \i => case isNonEmpty i of
+  No _ => digit
+  Yes _ => let (x, xs) = uncons i in case x of {
+    '0' => Done xs 0; '1' => Done xs 1; '2' => Done xs 2; '3' => Done xs 3; '4' => Done xs 4;
+    '5' => Done xs 5; '6' => Done xs 6; '7' => Done xs 7; '8' => Done xs 8; '9' => Done xs 9;
+    _ => Fail "digit"
+  }
 
 export
-hexDigit : (MonoListLike full Char) => Parser full Char
-hexDigit = satisfy isHexDigit
+hexDigit : (MonoListLike full Char) => Parser full (Fin 16)
+hexDigit = More (Fail "hexDigit") $ \i => case isNonEmpty i of
+  No _ => hexDigit
+  Yes _ => let (x, xs) = uncons i in case x of {
+    '0' => Done xs 0; '1' => Done xs 1; '2' => Done xs 2; '3' => Done xs 3;
+    '4' => Done xs 4; '5' => Done xs 5; '6' => Done xs 6; '7' => Done xs 7;
+    '8' => Done xs 8; '9' => Done xs 9; 'A' => Done xs 10; 'B' => Done xs 11;
+    'C' => Done xs 12; 'D' => Done xs 13; 'E' => Done xs 14; 'F' => Done xs 15;
+    'a' => Done xs 10; 'b' => Done xs 11; 'c' => Done xs 12; 'd' => Done xs 13;
+    'e' => Done xs 14; 'f' => Done xs 15;
+    _ => Fail "hexDigit"
+  }
 
 export
-octDigit : (MonoListLike full Char) => Parser full Char
-octDigit = satisfy isHexDigit
-
--- binary stuff
-
-export
-zro : MonoListLike full Digit => Parser full Digit
-zro = token O
-
-export
-one : MonoListLike full Digit => Parser full Digit
-one = token I
-
-infixl 1 >$=
--- TODO: can do without (Monoid full)
-export
-(>$=) : (Monoid full, MonoListLike full item) => Parser full a -> (a -> Either String b) -> Parser full b
-m >$= f = map f m >>= \r => case r of
-  Left msg => Fail msg
-  Right r => pure r
--- utf8 stuff, TODO: better implementation
-
-export
-bits8BinPadToLen : MonoListLike full Bits8 => Parser full Bin
-bits8BinPadToLen = (padToLen 8 . toBin . cast) <$> anyToken
-
-export
-utf8Code : (Monoid full, MonoListLike full Bits8) => Parser full Char
-utf8Code = utf8Code4 <|> utf8Code3 <|> utf8Code2 <|> utf8Code1
-  where
-  binToChar : Bin -> Char
-  binToChar = chr . toInt
-
-  utf8AtomBin : Parser full Bin
-  utf8AtomBin = bits8BinPadToLen >$= \r => toEither_ $ feed r $ ((toList <$> count 6 anyToken) <* zro <* one)
-  
-  utf8Code1 : Parser full Char
-  utf8Code1 = (\a => binToChar a)
-    <$> guard
-    where
-    guard : Parser full Bin
-    guard = bits8BinPadToLen >$= \r => toEither_ $ feed r $ ((toList <$> count 7 anyToken) <* zro)
-  
-  utf8Code2 : Parser full Char
-  utf8Code2 = (\a, b => binToChar $ b <+> a)
-    <$> guard <*> utf8AtomBin
-    where
-    guard : Parser full Bin
-    guard = bits8BinPadToLen >$= \r => toEither_ $ feed r $ ((toList <$> count 5 anyToken) <* zro <* one <* one)
-  
-  utf8Code3 : Parser full Char
-  utf8Code3 = (\a, b, c => binToChar $ c <+> b <+> a)
-    <$> guard <*> utf8AtomBin <*> utf8AtomBin
-    where
-    guard : Parser full Bin
-    guard = bits8BinPadToLen >$= \r => toEither_ $ feed r $ ((toList <$> count 4 anyToken) <* zro <* one <* one <* one)
-  
-  utf8Code4 : Parser full Char
-  utf8Code4 = (\a, b, c, d => binToChar $ d <+> c <+> b <+> a)
-    <$> guard <*> utf8AtomBin <*> utf8AtomBin <*> utf8AtomBin
-    where
-    guard : Parser full Bin
-    guard = bits8BinPadToLen >$= \r => toEither_ $ feed r $ ((toList <$> count 3 anyToken) <* zro <* one <* one <* one <* one)
-
-export
-charToUtf8 : Char -> List Bits8
-charToUtf8 chr =
-  let x = cast {to = Bits32} (ord chr) in
-  if 0x0000 <= x && x <= 0x007F then
-    [ prim__or_Bits8 0b00000000 $ prim__and_Bits8 0b01111111 $ cast (x `prim__shr_Bits32`  0)
-    ]
-  else if 0x0080 <= x && x <= 0x07FF then
-    [ prim__or_Bits8 0b11000000 $ prim__and_Bits8 0b00011111 $ cast (x `prim__shr_Bits32`  6)
-    , prim__or_Bits8 0b10000000 $ prim__and_Bits8 0b00111111 $ cast (x `prim__shr_Bits32`  0)
-    ]
-  else if 0x0800 <= x && x <= 0xFFFF then
-    [ prim__or_Bits8 0b11100000 $ prim__and_Bits8 0b00001111 $ cast (x `prim__shr_Bits32` 12)
-    , prim__or_Bits8 0b10000000 $ prim__and_Bits8 0b00111111 $ cast (x `prim__shr_Bits32`  6)
-    , prim__or_Bits8 0b10000000 $ prim__and_Bits8 0b00111111 $ cast (x `prim__shr_Bits32`  0)
-    ]
-  else if 0x10000 <= x && x <= 0x10FFFF then
-    [ prim__or_Bits8 0b11110000 $ prim__and_Bits8 0b00000111 $ cast (x `prim__shr_Bits32` 18)
-    , prim__or_Bits8 0b10000000 $ prim__and_Bits8 0b00111111 $ cast (x `prim__shr_Bits32` 12)
-    , prim__or_Bits8 0b10000000 $ prim__and_Bits8 0b00111111 $ cast (x `prim__shr_Bits32`  6)
-    , prim__or_Bits8 0b10000000 $ prim__and_Bits8 0b00111111 $ cast (x `prim__shr_Bits32`  0)
-    ]
-  else
-    [ 0b00000000
-    ]
+octDigit : (MonoListLike full Char) => Parser full (Fin 8)
+octDigit = More (Fail "octDigit") $ \i => case isNonEmpty i of
+  No _ => octDigit
+  Yes _ => let (x, xs) = uncons i in case x of {
+    '0' => Done xs 0; '1' => Done xs 1; '2' => Done xs 2; '3' => Done xs 3;
+    '4' => Done xs 4; '5' => Done xs 5; '6' => Done xs 6; '7' => Done xs 7;
+    _ => Fail "octDigit"
+  }
