@@ -12,8 +12,8 @@ import Extra.String
 import Extra.Vect
 
 public export
-interface Monoid state => Stream state item | state where
-  uncons : state -> Maybe (state, item)
+interface Monoid i => Stream i e | i where
+  uncons : i -> Maybe (i, e)
 
 export
 {0 a : Type} -> Stream (List a) a where
@@ -27,7 +27,7 @@ Stream String Char where
     StrNil => Nothing
 
 export
-data Parser : (input_type: Type) -> (result : Type) -> Type where
+data Parser : (input: Type) -> (result : Type) -> Type where
   Done : (leftover : i) -> (result : r) -> Parser i r
   Fail : (msg : String) -> Parser i r
   More : (on_eof : Lazy (Parser i r)) -> (on_feed : (i -> Parser i r)) -> Parser i r
@@ -115,45 +115,45 @@ mutual
 -- basic
 
 export
-anyToken : Stream state item => Parser state item
-anyToken = More (Fail "anyToken") $ \state =>
-  case uncons state of
+anyToken : Stream i e => Parser i e
+anyToken = More (Fail "anyToken") $ \i =>
+  case uncons i of
     Nothing => anyToken
-    Just (state', result) => Done state' result
+    Just (i', result) => Done i' result
 
 export
-satisfy : Stream state item => (item -> Bool) -> Parser state item
-satisfy predicate = More (Fail "satisfy") $ \state =>
-  case uncons state of
+satisfy : Stream i e => (e -> Bool) -> Parser i e
+satisfy predicate = More (Fail "satisfy") $ \i =>
+  case uncons i of
     Nothing => satisfy predicate
-    Just (state', token) => if predicate token then Done state' token else Fail "satisfy"
+    Just (i', token) => if predicate token then Done i' token else Fail "satisfy"
 
 export
 eof : Monoid i => Parser i ()
 eof = More (Done neutral ()) (\_ => Fail "eof")
 
 export
-token : (Stream state item, Eq item) => item -> Parser state item
+token : (Stream i e, Eq e) => e -> Parser i e
 token c = satisfy (c ==) <?> "token"
 
 export
-string : (Stream state item, Stream state' item) => (Eq item) => state' -> Parser state state'
+string : (Stream i e, Stream i' e) => (Eq e) => i' -> Parser i i'
 string xxs = case uncons xxs of
   Nothing => pure xxs -- pure neutral
   Just (xs, x) => token x *> string xs *> pure xxs
 
 export
-lookAhead : Stream state item => Parser state item
-lookAhead = More (Fail "lookAhead") $ \state =>
-  case uncons state of
+lookAhead : Stream i e => Parser i e
+lookAhead = More (Fail "lookAhead") $ \i =>
+  case uncons i of
     Nothing => lookAhead
-    Just (xs, x) => Done state x
+    Just (xs, x) => Done i x
 
 export
-notFollowedBy : Monoid state => Parser state a -> Parser state ()
+notFollowedBy : Monoid i => Parser i a -> Parser i ()
 notFollowedBy = lookAheadNotInto neutral
   where
-  lookAheadNotInto : state -> Parser state a -> Parser state ()
+  lookAheadNotInto : i -> Parser i a -> Parser i ()
   lookAheadNotInto i parser =
     case parser of
       Fail _ => Done i ()
@@ -177,32 +177,32 @@ export
 -- char stuff
 
 export
-lower : (Stream state Char) => Parser state Char
+lower : (Stream i Char) => Parser i Char
 lower = satisfy isLower
 
 export
-upper : (Stream state Char) => Parser state Char
+upper : (Stream i Char) => Parser i Char
 upper = satisfy isUpper
 
 export
-alpha : (Stream state Char) => Parser state Char
+alpha : (Stream i Char) => Parser i Char
 alpha = satisfy isAlpha
 
 export
-alphaNum : (Stream state Char) => Parser state Char
+alphaNum : (Stream i Char) => Parser i Char
 alphaNum = satisfy isAlphaNum
 
 export
-newline : (Stream state Char) => Parser state Char
+newline : (Stream i Char) => Parser i Char
 newline = satisfy isNL
 
 export
-space : (Stream state Char) => Parser state Char
+space : (Stream i Char) => Parser i Char
 space = satisfy isSpace
 
 export
-digit : (Stream state Char) => Parser state (Fin 10)
-digit = More (Fail "digit") $ \state => case uncons state of
+digit : (Stream i Char) => Parser i (Fin 10)
+digit = More (Fail "digit") $ \i => case uncons i of
   Nothing => digit
   Just (xs, x) => case x of {
     '0' => Done xs 0; '1' => Done xs 1; '2' => Done xs 2; '3' => Done xs 3; '4' => Done xs 4;
@@ -211,8 +211,8 @@ digit = More (Fail "digit") $ \state => case uncons state of
   }
 
 export
-hexDigit : (Stream state Char) => Parser state (Fin 16)
-hexDigit = More (Fail "digit") $ \state => case uncons state of
+hexDigit : (Stream i Char) => Parser i (Fin 16)
+hexDigit = More (Fail "digit") $ \i => case uncons i of
   Nothing => hexDigit
   Just (xs, x) => case x of {
     '0' => Done xs 0; '1' => Done xs 1; '2' => Done xs 2; '3' => Done xs 3;
@@ -225,8 +225,8 @@ hexDigit = More (Fail "digit") $ \state => case uncons state of
   }
 
 export
-octDigit : (Stream state Char) => Parser state (Fin 8)
-octDigit = More (Fail "digit") $ \state => case uncons state of
+octDigit : (Stream i Char) => Parser i (Fin 8)
+octDigit = More (Fail "digit") $ \i => case uncons i of
   Nothing => octDigit
   Just (xs, x) => case x of {
     '0' => Done xs 0; '1' => Done xs 1; '2' => Done xs 2; '3' => Done xs 3;
