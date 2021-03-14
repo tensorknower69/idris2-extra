@@ -160,6 +160,10 @@ notFollowedBy = lookAheadNotInto neutral
       More on_eof on_feed => More (lookAheadNotInto i on_eof) (\i' => lookAheadNotInto (i <+> i') (on_feed i'))
       Done _ _ => Fail "notFollowedBy"
 
+export
+acceptAll : Monoid i => Parser i i
+acceptAll = More (pure neutral) $ \i => (<+> i) <$> acceptAll
+
 -- show
 
 export
