@@ -2,6 +2,7 @@ module Extra.Pair
 
 infixl 0 :>
 
+||| A pair with its second argument being lazy, heavily using in `Extra.Streaming`
 public export
 data Of : (a : Type) -> (b : Type) -> Type where
   (:>) : a -> Lazy b -> Of a b

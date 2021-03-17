@@ -6,50 +6,62 @@ import Data.DPair
 import Data.Vect
 import Data.Nat
 
+||| `False` -> `O`, `True` -> `I`
 public export
 boolToDigit : Bool -> Digit
 boolToDigit False = O
 boolToDigit True = I
 
+||| `O` -> `0`, `I` -> `1`
 export
 digitToInteger : Digit -> Integer
 digitToInteger O = 0
 digitToInteger I = 1
 
+||| A type to represent endianness
 public export
 data Endianness : Type where
+  ||| Little endian
   LE : Endianness
+  ||| Big endian
   BE : Endianness
 
+||| `LE` -> `BE`, `BE` -> `LE`
 public export
 flip : Endianness -> Endianness
 flip LE = BE
 flip BE = LE
 
+||| Binary representation, basically `Vect` but takes account into endianness
 public export
 data Binary : Endianness -> Nat -> Type where
   Nil : Binary endian 0
   (::) : Digit -> Binary endian n -> Binary endian (S n)
 
+||| Convert a `Vect` into a `Binary LE`
 public export
 fromVectLE : Vect n Digit -> Binary LE n
 fromVectLE Nil = Nil
 fromVectLE (x :: xs) = x :: fromVectLE xs
 
+||| Convert a `Vect` into a `Binary BE`
 public export
 fromVectBE : Vect n Digit -> Binary BE n
 fromVectBE Nil = Nil
 fromVectBE (x :: xs) = x :: fromVectBE xs
 
+||| An auxiliary function for `reverse`, useful for proving stuff
 public export
 reverseOnto : Binary (flip endian) a -> Binary endian m -> Binary (flip endian) (a + m)
 reverseOnto acc Nil = rewrite plusZeroRightNeutral a in acc
 reverseOnto {m = S n} acc (x :: xs) = rewrite sym (plusSuccRightSucc a n) in reverseOnto (x :: acc) xs
 
+||| Reverse a `Binary`, and flips its endianness
 public export
 reverse : Binary endian n -> Binary (flip endian) n
 reverse xs = reverseOnto Nil xs
 
+||| Some helper function for showing `Binary BE`
 private
 showBEHelper : {default True first : Bool} -> Binary BE n -> String
 showBEHelper {first = False} Nil = ""
@@ -63,8 +75,7 @@ export
   show {endian = LE} xs = show $ reverse xs
   show {endian = BE} xs = showBEHelper xs
 
-fromInteger : (n : Integer) -> LTE (fromInteger n) k
-
+||| Converts a `Bits8` into `Binary LE 8`
 export
 fromBits8LE : Bits8 -> Binary LE 8
 fromBits8LE m = fromVectLE $ map (boolToDigit . testBit m)
@@ -78,6 +89,7 @@ fromBits8LE m = fromVectLE $ map (boolToDigit . testBit m)
   , (Element 7 (lteReflectsLTE 8 8 Refl))
   ]
 
+||| Converts a `Bits16` into `Binary LE 16`
 export
 fromBits16LE : Bits16 -> Binary LE 16
 fromBits16LE m = fromVectLE $ map (boolToDigit . testBit m)
@@ -99,6 +111,7 @@ fromBits16LE m = fromVectLE $ map (boolToDigit . testBit m)
   , Element 15 (lteReflectsLTE 16 16 Refl)
   ]
 
+||| Converts a `Bits32` into `Binary LE 32`
 export
 fromBits32LE : Bits32 -> Binary LE 32
 fromBits32LE m = fromVectLE $ map (boolToDigit . testBit m)
@@ -136,6 +149,7 @@ fromBits32LE m = fromVectLE $ map (boolToDigit . testBit m)
   , Element 31 (lteReflectsLTE 32 32 Refl)
   ]
 
+||| Convert a `Binary` into its corresponding integer representation
 export
 toInteger : {endian : Endianness} -> Binary endian n -> Integer
 toInteger Nil = 0

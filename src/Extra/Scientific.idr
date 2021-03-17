@@ -12,6 +12,7 @@ bin10Index n = helper 0
   helper : Integer -> Integer
   helper a = if n < pow 10 a then a else helper (a + 1)
 
+||| Scientific notation representation in the form of `coefficient*10^(exponentation)`
 public export
 data Scientific : Type where
   MkScientific : (coefficient : Integer) -> (exponentation : Integer) -> Scientific
@@ -33,6 +34,7 @@ export
 Neg Scientific where
   negate (MkScientific c e) = MkScientific (-c) e
 
+||| Convert a integer into a `Scientific` with its most significant digit moved to just after the decimal point
 export
 asDecimal : Integer -> Scientific
 asDecimal n = MkScientific n (negate (bin10Index n))

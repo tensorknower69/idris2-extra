@@ -44,10 +44,11 @@ private
 bits8ToBytesFin : Bits8 -> (Fin 16, Fin 16)
 bits8ToBytesFin x = divmodFinNZ (bits8ToFin x) 16 SIsNotZ
 
-export
+private
 bits8ToHexChars : Bits8 -> (Char, Char)
 bits8ToHexChars = bimap hexUpper hexUpper . bits8ToBytesFin
 
+||| Turns a foldable of Bits8 into a upper hex string without '0x' prefix
 export
 hexString : Foldable f => f Bits8 -> String
 hexString = foldr (\x, str => let (a, b) = bits8ToHexChars x in strCons a $ strCons b $ str) ""

@@ -11,6 +11,7 @@ import Extra.Applicative
 import Extra.String
 import Extra.Vect
 
+||| `Stream i e` where `i` is the full type and `e` is the type of a single token
 public export
 interface Monoid i => Stream i e | i where
   uncons : i -> Maybe (i, e)
@@ -33,35 +34,43 @@ data Parser : (input: Type) -> (result : Type) -> Type where
   More : (on_eof : Lazy (Parser i r)) -> (on_feed : (i -> Parser i r)) -> Parser i r
 
 -- core
-
+||| Fail a `Parser`, equivalent to the `Fail` constructor
 export
 fail : String -> Parser i r
 fail = Fail
 
 export
+||| Complete a `Parser`, equivalent to the `Done` constructor, arguments:
+||| - remaining input
+||| - result value
 done : i -> r -> Parser i r
 done = Done
 
+||| Create a `Parser` handling `feedEof`/`feed` cases, equivalent to the `More` constructor
 export
 more : (on_eof : Lazy (Parser i r)) -> (on_feed : (i -> Parser i r)) -> Parser i r
 more = More
 
+||| Convert a `Parser` into an Either, if the parser is partial, the result is `Left "partial"`
 export
 toEither : Parser i r -> Either String (i, r)
 toEither (Done i r) = Right (i, r)
 toEither (Fail msg) = Left msg
 toEither (More _ _) = Left "partial"
 
+||| `toEither` but discards the leftover
 export
 toEither_ : Parser i r -> Either String r
 toEither_ = map snd . toEither
 
+||| Feed a parser with inputs into a `Parser`
 export
 feed : Semigroup i => i -> Parser i r -> Parser i r
 feed input (Done leftover result) = Done (leftover <+> input) result
 feed input (More _ on_feed) = on_feed input
 feed input (Fail msg) = Fail msg
 
+||| Feed an EOF signal into a `Parser`
 export
 feedEof : Parser i r -> Parser i r
 feedEof (Done leftover result) = Done leftover result
@@ -70,6 +79,8 @@ feedEof (Fail msg) = Fail msg
 
 infixl 0 <?>
 
+-- TODO: improve quality of labels
+||| Labels a parser
 export
 (<?>) : Parser i r -> String -> Parser i r
 (Fail msg') <?> msg = Fail $ msg <+> "." <+> msg'

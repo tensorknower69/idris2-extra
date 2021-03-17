@@ -5,16 +5,19 @@ import Data.Nat
 import Data.Nat.Equational
 import Data.Nat.Division
 
+||| Subtract a `Nat` by a `Fin`
 public export
 subtract : (n : Nat) -> Fin (S n) -> Nat
 subtract n FZ = n
 subtract (S n) (FS k) = subtract n k
 
-export
+||| `Data.Nat.lteRefl` but different symbols
+public export
 lteAsymRefl : {a, b : Nat} -> a = b -> LTE a b
 lteAsymRefl Refl = lteRefl
 
-export
+||| Proof of forall a, b where b /= 0, a/b <= a
+public export
 divNatNZLteNumer : (numer : Nat) -> (denom : Nat) -> (prf : Not (denom = 0)) -> LTE (divNatNZ numer denom prf) numer
 divNatNZLteNumer a Z prf = void $ prf Refl
 divNatNZLteNumer a (S b) prf =

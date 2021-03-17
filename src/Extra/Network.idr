@@ -1,3 +1,4 @@
+||| A replacement for Control.Linear.Network and use `Ptr`s instead of `String`s
 module Extra.Network
 
 import Control.Linear.LIO
@@ -8,49 +9,60 @@ import Network.Socket
 import Network.Socket.Raw
 import public Network.Socket.Data
 
+||| libc `send` in idris2
 export
 %foreign "C:send,libc"
 prim__socket_send : SocketDescriptor -> (ptr : AnyPtr) -> (nbytes : SizeT) -> (flags : Bits32) -> PrimIO SSizeT
 
+||| libc `recv` in idris2
 export
 %foreign "C:recv,libc"
 prim__socket_recv : SocketDescriptor -> (ptr : AnyPtr) -> (nbytes : SizeT) -> (flags : Bits32) -> PrimIO SSizeT
 
+||| `prim__socket_send` with higher level primitives in idris2
 export
-socket_send : HasIO io => Socket.Data.Socket -> AnyPtr -> SizeT -> io SSizeT
+socket_send : HasIO io => Socket.Data.Socket -> (data_ptr : AnyPtr) -> (data_size : SizeT) -> io SSizeT
 socket_send sock ptr nbytes = do
   ret <- primIO $ prim__socket_send sock.descriptor ptr nbytes 0
   pure ret
 
+||| `prim__socket_recv` with higher level primitives in idris2
 export
 socket_recv : HasIO io => Socket.Data.Socket -> AnyPtr -> SizeT -> io SSizeT
 socket_recv sock ptr nbytes = do
   ret <- primIO $ prim__socket_recv sock.descriptor ptr nbytes 0
   pure ret
 
+||| Assumed states of a socket. Keep in mind that unintentional tempering can fundamentally destroy the premise
 public export
 data SocketState = Ready | Bound | Listening | Open | Closed
+
+||| Used to specify which states enables the socket be called with `connect`
 public export
 data CanConnect : SocketState -> Type where
   CanConnect_Ready : CanConnect Ready
   CanConnect_Bound : CanConnect Bound
 
+||| Possible protocols of a socket, usually you use `Default`
 public export
 data Protocol : Type where
   TCP : Protocol
   UDP : Protocol
   Default : Protocol
 
+||| An auxiliary function to convert Protocol into its corresponding magic number
 export
 protocolNumber : Protocol -> ProtocolNumber
 protocolNumber Default = 0
 protocolNumber TCP = 6
 protocolNumber UDP = 17
 
+||| The `Socket`, I don't expose the constructor in order to prevent incorrect usages
 export
 data Socket : SocketFamily -> SocketType -> Protocol -> SocketState -> Type where
      MkSocket : Socket.Data.Socket -> Socket family type protocol state
 
+||| Construct a socket
 export
 newSocket :
   LinearIO io
@@ -65,16 +77,19 @@ newSocket family type protocol on_success on_fail = do
     | Left err => on_fail err
   on_success (MkSocket sock)
 
+||| Close a socket, you may want to call `done` too to kill the socket
 export
 close : LinearIO io => (1 _ : Socket family type protocol state) -> L io {use=1} (Socket family type protocol Closed)
 close (MkSocket sock) = do
   Socket.close sock
   pure1 (MkSocket sock)
 
+||| Finish a socket
 export
 done : LinearIO io => (1 _ : Socket family type protocol Closed) -> L io ()
 done (MkSocket sock) = pure ()
 
+||| Bind a socket
 export
 bind :
   LinearIO io
@@ -86,6 +101,7 @@ bind (MkSocket sock) addr port = do
   ok <- Socket.bind sock addr port
   pure1 $ ok == 0 # MkSocket sock
 
+||| Connect a socket to an address
 export
 connect :
   LinearIO io
@@ -98,6 +114,7 @@ connect (MkSocket sock) addr port = do
   ok <- Socket.connect sock addr port
   pure1 $ ok == 0 # MkSocket sock
 
+||| Put a socket into listen mode
 export
 listen :
   LinearIO io
@@ -107,6 +124,7 @@ listen (MkSocket sock) = do
   ok <- Socket.listen sock
   pure1 $ ok == 0 # MkSocket sock
 
+||| Put a socket into accept mode and blocks until a client connects to it
 export
 accept :
   LinearIO io
@@ -146,6 +164,7 @@ accept (MkSocket sock) = do
 --   setBits8s
 
 -- TODO: for some reason using String null-terminates
+||| Send some data via a socket
 export
 send : (LinearIO io)
   => (1 sock : Socket family type protocol Open)
@@ -158,6 +177,8 @@ send (MkSocket sock) (MkAPtr ptr) = do
 
 -- TODO: optimize
 -- TODO: for some reason using String null-terminates
+
+||| Receive some data from a socket
 export
 recv
   : LinearIO io

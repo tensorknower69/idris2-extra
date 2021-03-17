@@ -1,6 +1,6 @@
+||| JSON parser/ADT
+||| Reference: https://www.json.org/json-en.html
 module Extra.Json
-
--- reference: https://www.json.org/json-en.html
 
 import Extra.Parser
 import Extra.Alternative
@@ -10,10 +10,7 @@ import Debug.Trace
 import Data.Fin
 import Data.List
 
-public export
-Number : Type
-Number = Double
-
+||| A JSON value
 public export
 data Value : Type where
   MkString : String -> Value
