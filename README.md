@@ -8,17 +8,24 @@ Once TLS and HTTP are implemented, I will be porting `tensorknower69/nhentai` an
 PRs are welcomed!!!!!111111 If any..., I mean Idris2 is still not well-known yet. How do I make friends in/at/on school
 
 ## TODO List (The percentages are completely arbitrary):
-- 0%: html parser // tagsoup in idris)
-- 0%: http client
-- 50%: linear networking
-- 0%: OpenGL
-- 0.01%: cryptography // ~~stealing code from `cryptonite`~~`OpenSSL` HERE I COME
-- 100%: json parser
-- 0%: tls 
-- incremental parser
-  - 100%: core
-  - 0%: error reporting
-- whatever can be found on the python/haskell package index. I may choose Idris2 as my primary language for side projects. Currently, I don't mind if stuff is unsafe or wacky, I just want to be able to write an application first. In the future, I will take this more seriously.
+- HTML
+  - 0%: Parser // [tagsoup](https://hackage.haskell.org/package/tagsoup)
+  - 0%: [Scalpel](https://hackage.haskell.org/package/scalpel-core)
+- HTTP
+  - 0%: Parser
+  - 0%: Client
+- 50%: Linear networking
+- [GPipe](https://hackage.haskell.org/package/GPipe)
+  - 0%: OpenGL
+  - [GPipe-GLFW](https://hackage.haskell.org/package/GPipe-GLFW)
+    - 0%: GLFW
+- 0.01% : OpenSSL
+- 100%: JSON parser
+- 0%: TLS 
+- Incremental parser
+  - 100%: Core
+  - 0%: Error reporting
+- Whatever can be found on the python/haskell package index. I may choose Idris2 as my primary language for side projects. Currently, I don't mind if stuff is unsafe or wacky, I just want to be able to write an application first. In the future, I will take this more seriously.
 
 ## Questions I have and I am afraid to ask (unmaintained)
 
