@@ -1,9 +1,5 @@
 module Extra.Pair
 
-public export
-data LLPair : Type -> Type -> Type where
-  (#) : (1 _ : a) -> b -> LLPair a b
-
 infixl 0 :>
 
 public export

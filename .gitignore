@@ -3,3 +3,4 @@
 *.sw?
 build/
 libextra.so
+libcrypto.so

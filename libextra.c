@@ -1,10 +1,11 @@
 #include <stddef.h>
 #include <stdio.h>
+#include <stdint.h>
 
-unsigned char peek(void* ptr, size_t index) {
-  return ((unsigned char*) ptr)[index];
+uint8_t peek(uint8_t* ptr, size_t index) {
+  return ptr[index];
 }
 
-void poke(void* ptr, size_t index, unsigned char byte) {
-  ((unsigned char*) ptr)[index] = byte;
+void poke(uint8_t* ptr, size_t index, uint8_t byte) {
+  ptr[index] = byte;
 }

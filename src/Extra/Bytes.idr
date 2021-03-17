@@ -16,7 +16,7 @@ interface ByteAccess (f : Nat -> Type) where
   free : LinearIO io => (1 _ : f size) -> L io ()
 
   setBits8 : LinearIO io => (index : Fin size) -> Bits8 -> (1 _ : f size) -> L io {use=1} (f size)
-  getBits8 : LinearIO io => (index : Fin size) -> (1 _ : f size) -> L io {use=1} (LLPair (f size) Bits8)
+  getBits8 : LinearIO io => (index : Fin size) -> (1 _ : f size) -> L io {use=1} (Res Bits8 (\_ => f size))
 
   -- TODO: how do i rewrite linear values?
   setBits8s : LinearIO io => {a, b : Nat} -> Fin (S b) -> Vect a Bits8 -> (1 _ : f (a + b)) -> L io {use=1} (f (a + b))
@@ -27,12 +27,15 @@ interface ByteAccess (f : Nat -> Type) where
     pure1 $ replace1 {p = f} (sym $ plusSuccRightSucc len b) mem
 
   -- TODO: how do i rewrite linear values?
-  getBits8s : LinearIO io => {b : Nat} -> Fin (S b) -> (a : Nat) -> (1 _ : f (a + b)) -> L io {use=1} (LLPair (f (a + b)) (Vect a Bits8))
-  getBits8s _ Z mem = pure1 $ mem # Nil
+  getBits8s : LinearIO io => {b : Nat} -> Fin (S b) -> (a : Nat) -> (1 _ : f (a + b)) -> L io {use=1} (Res (Vect a Bits8) (\_ => f (a + b)))
+  getBits8s _ Z mem = pure1 $ Nil # mem
   getBits8s pos (S n) mem = do
-    (mem # bits8) <- Extra.Bytes.getBits8 (weakenN n pos) (replace1 {p = f . S} (plusCommutative n b) mem)
-    (mem # bits8s) <- Extra.Bytes.getBits8s (FS pos) n (replace1 {p = f} (plusCommutative (S b) n) mem)
-    pure1 $ replace1 {p = f} (sym $ plusSuccRightSucc n b) mem # (bits8 :: bits8s)
+    let mem = replace1 {p = f . S} (plusCommutative n b) mem
+    (bits8 # mem) <- Extra.Bytes.getBits8 (weakenN n pos) mem
+    let mem = replace1 {p = f} (plusCommutative (S b) n) mem
+    (bits8s # mem) <- Extra.Bytes.getBits8s (FS pos) n mem
+    let mem = replace1 {p = f} (sym $ plusSuccRightSucc n b) mem
+    pure1 $ (bits8 :: bits8s) # mem
 
   pack : LinearIO io => {size : Nat} -> Vect size Bits8 -> L io {use=1} (f size)
   pack bits8s = do
@@ -40,30 +43,16 @@ interface ByteAccess (f : Nat -> Type) where
     mem <- setBits8s {b = 0} FZ bits8s (replace1 {p = f} (sym $ plusZeroRightNeutral size) mem)
     pure1 $ (replace1 {p = f} (plusZeroRightNeutral size) mem)
 
-  unpack : LinearIO io => {size : Nat} -> (1 _ : f size) -> L io {use=1} (LLPair (f size) (Vect size Bits8))
+  unpack : LinearIO io => {size : Nat} -> (1 _ : f size) -> L io {use=1} (Res (Vect size Bits8) (\_ => f size))
   unpack mem = do
-    (mem # bits8s) <- getBits8s {b = 0} FZ size (replace1 {p = f} (sym $ plusZeroRightNeutral size) mem)
-    pure1 $ (replace1 {p = f} (plusZeroRightNeutral size) mem) # bits8s
+    let mem = replace1 {p = f} (sym $ plusZeroRightNeutral size) mem
+    (bits8s # mem) <- getBits8s {b = 0} FZ size mem
+    let mem = replace1 {p = f} (plusZeroRightNeutral size) mem
+    pure1 $ bits8s # mem
 
 public export
 data APtr : Nat -> Type where
   MkAPtr : (ptr : AnyPtr) -> APtr size
-
-export
-%foreign "C:malloc,libc"
-prim__malloc : SizeT -> PrimIO AnyPtr
-
-export
-%foreign "C:free,libc"
-prim__free : AnyPtr -> PrimIO ()
-
-export
-%foreign "C:peek,libextra"
-prim__peek : AnyPtr -> SizeT -> PrimIO Bits8
-
-export
-%foreign "C:poke,libextra"
-prim__poke : AnyPtr -> SizeT -> Bits8 -> PrimIO ()
 
 export
 ByteAccess APtr where
@@ -75,7 +64,7 @@ ByteAccess APtr where
 
   getBits8 pos (MkAPtr ptr) = do
     bits8 <- liftIO1 $ primIO $ prim__peek ptr (cast $ finToInteger pos)
-    pure1 $ MkAPtr ptr # bits8
+    pure1 $ bits8 # MkAPtr ptr
 
   setBits8 pos bits8 (MkAPtr ptr) = do
     liftIO1 $ primIO $ prim__poke ptr (cast $ finToInteger pos) bits8
