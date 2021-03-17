@@ -10,7 +10,7 @@ PRs are welcomed!!!!!111111 If any..., I mean Idris2 is still not well-known yet
 ## TODO List (The percentages are completely arbitrary):
 - HTML
   - 0%: Parser // [tagsoup](https://hackage.haskell.org/package/tagsoup)
-  - 0%: [Scalpel](https://hackage.haskell.org/package/scalpel-core)
+  - 0%: Decoder // [Scalpel](https://hackage.haskell.org/package/scalpel-core)
 - HTTP
   - 0%: Parser
   - 0%: Client
@@ -20,7 +20,10 @@ PRs are welcomed!!!!!111111 If any..., I mean Idris2 is still not well-known yet
   - [GPipe-GLFW](https://hackage.haskell.org/package/GPipe-GLFW)
     - 0%: GLFW
 - 0.01% : OpenSSL
-- 100%: JSON parser
+- JSON
+  - 100%: Parser
+  - 0%: Encoder
+  - 0%: Decoder
 - 0%: TLS 
 - Incremental parser
   - 100%: Core
