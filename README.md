@@ -15,7 +15,7 @@ PRs are welcomed!!!!!111111 If any..., I mean Idris2 is still not well-known yet
 - 0.01%: cryptography // ~~stealing code from `cryptonite`~~`OpenSSL` HERE I COME
 - 100%: json parser
 - 0%: tls 
-- parser
+- incremental parser
   - 100%: core
   - 0%: error reporting
 - whatever can be found on the python/haskell package index. I may choose Idris2 as my primary language for side projects. Currently, I don't mind if stuff is unsafe or wacky, I just want to be able to write an application first. In the future, I will take this more seriously.
