@@ -2,10 +2,12 @@ module Extra.String
 
 import Data.Fin
 import Data.Nat
+import Data.Vect
 import Data.String
 import Extra.Binary
 import Data.String.Extra
 import Extra.Fin
+import Extra.Proof
 
 -- TODO: I have no idea how should I be implementing this
 public export
@@ -39,7 +41,7 @@ export
 hexUpper : Fin 16 -> Char
 hexUpper = toUpper . hexLower
 
-||| Turns a `Bits8` into a pair of bytes in `Fin` representation
+||| Turn a `Bits8` into a pair of bytes in `Fin` representation
 private
 bits8ToBytesFin : Bits8 -> (Fin 16, Fin 16)
 bits8ToBytesFin x = divmodFinNZ (bits8ToFin x) 16 SIsNotZ
@@ -48,7 +50,14 @@ private
 bits8ToHexChars : Bits8 -> (Char, Char)
 bits8ToHexChars = bimap hexUpper hexUpper . bits8ToBytesFin
 
-||| Turns a foldable of Bits8 into a upper hex string without '0x' prefix
+||| Turn a foldable of Bits8 into a upper hex string without '0x' prefix
 export
 hexString : Foldable f => f Bits8 -> String
 hexString = foldr (\x, str => let (a, b) = bits8ToHexChars x in strCons a $ strCons b $ str) ""
+
+||| Turn a string (NO UTF8) into a list of Bits8 by casting the ordinals of the chars of the string
+export
+unpackVect : (str : String) -> Vect (length str) Char
+unpackVect str = case toVect (length str) (unpack str) of
+  Nothing => crash "Extra.String.unpackVect: impossible case"
+  Just t => t

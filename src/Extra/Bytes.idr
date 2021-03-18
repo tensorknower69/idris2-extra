@@ -3,6 +3,7 @@ module Extra.Bytes
 import Data.Nat
 import Extra.FFI
 import Extra.Proof
+import Extra.String
 import public Control.Linear.LIO
 import public Data.Fin
 import public Data.Vect
@@ -77,3 +78,7 @@ ByteArray APtr where
   setBits8 pos bits8 (MkAPtr ptr) = do
     liftIO1 $ primIO $ prim__poke ptr (cast $ finToInteger pos) bits8
     pure1 $ MkAPtr ptr
+
+export
+fromStringNullTerminated : LinearIO io => (str : String) -> L io {use=1} (APtr (S (length str)))
+fromStringNullTerminated str = Extra.Bytes.pack $ map (cast . ord) $ (unpackVect str `snoc` '\0')

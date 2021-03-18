@@ -37,6 +37,18 @@ public export
 CUInt8 : Type
 CUInt8 = Bits8
 
+public export
+CChar : Type
+CChar = Bits8
+
+public export
+CUChar : Type
+CUChar = Bits8
+
+public export
+CString : Type
+CString = Ptr CChar
+
 private
 libc : String -> String
 libc f = "C:" <+> f <+> ",libc"
@@ -65,6 +77,14 @@ export
 %foreign libextra "poke"
 prim__poke : AnyPtr -> SizeT -> CUInt8 -> PrimIO ()
 
+export
+%foreign libextra "ptr_eq"
+prim__ptr_eq : AnyPtr -> AnyPtr -> PrimIO Bool
+
+export
+ptrEq : HasIO io => AnyPtr -> AnyPtr -> io Bool
+ptrEq a b = primIO $ prim__ptr_eq a b
+
 ||| `nullptr` in C
 export
 nullanyptr : AnyPtr
@@ -74,3 +94,15 @@ nullanyptr = prim__getNullAnyPtr
 export
 nullptr : Ptr a
 nullptr = prim__castPtr nullanyptr
+
+export
+isNullAnyPtr : AnyPtr -> Bool
+isNullAnyPtr = (== 1) . prim__nullAnyPtr
+
+export
+isAnyPtr : Ptr a -> Bool
+isAnyPtr = (== 1) . prim__nullPtr
+
+export
+castPtr : AnyPtr -> Ptr a
+castPtr = prim__castPtr 
