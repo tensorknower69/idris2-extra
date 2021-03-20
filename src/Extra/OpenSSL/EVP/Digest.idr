@@ -1,9 +1,10 @@
 module Extra.OpenSSL.EVP.Digest
 
-import Extra.OpenSSL.FFI
 import Control.Linear.LIO
-import Extra.Bytes
-import Extra.FFI
+import Extra.C.CPtr
+import Extra.C.Ptr
+import Extra.OpenSSL.FFI
+import Extra.OpenSSL.OBJ
 
 export
 data PRIM__EVP_MD : Type where
@@ -29,6 +30,10 @@ prim__EVP_sha384 : PrimIO (Ptr PRIM__EVP_MD)
 %foreign libcrypto "EVP_sha512"
 export
 prim__EVP_sha512 : PrimIO (Ptr PRIM__EVP_MD)
+
+%foreign libcrypto "EVP_MD_type"
+export
+prim__EVP_MD_type : Ptr PRIM__EVP_MD -> PrimIO CInt
 
 %foreign libcrypto "EVP_get_digestbyname"
 export
@@ -67,18 +72,35 @@ prim__EVP_DigestFinal_ex : Ptr PRIM__EVP_MD_CTX -> Ptr CUChar -> Ptr CUInt -> Pr
 
 public export
 data HashAlgo : Type where
+  Sha1 : HashAlgo
   Sha224 : HashAlgo
   Sha256 : HashAlgo
   Sha384 : HashAlgo
   Sha512 : HashAlgo
+  Md4 : HashAlgo
+  Md5 : HashAlgo
   -- UnknownAlgo : HashAlgo
 
 public export
+nidToHashAlgo : NID -> Maybe HashAlgo
+nidToHashAlgo (MkNID 64)  = Just Sha1
+nidToHashAlgo (MkNID 675) = Just Sha224
+nidToHashAlgo (MkNID 672) = Just Sha256
+nidToHashAlgo (MkNID 673) = Just Sha384
+nidToHashAlgo (MkNID 674) = Just Sha512
+nidToHashAlgo (MkNID 257) = Just Md4
+nidToHashAlgo (MkNID 4) = Just Md5
+nidToHashAlgo _ = Nothing
+
+public export
 hashAlgoDigestSize : HashAlgo -> Nat
+hashAlgoDigestSize Sha1   = 20
 hashAlgoDigestSize Sha224 = 28
 hashAlgoDigestSize Sha256 = 32
 hashAlgoDigestSize Sha384 = 48
 hashAlgoDigestSize Sha512 = 64
+hashAlgoDigestSize Md4    = 16
+hashAlgoDigestSize Md5    = 16
 
 export
 data EVP_MD : HashAlgo -> Type where
@@ -98,13 +120,6 @@ data EVP_MD_CTX_State : Type where
 export
 data EVP_MD_CTX : EVP_MD_CTX_State -> Type where
   MkEVP_MD_CTX : Ptr PRIM__EVP_MD_CTX -> EVP_MD_CTX state
-
-export
-loadEVP_MD : LinearIO io => (algo : HashAlgo) -> L io (EVP_MD algo)
-loadEVP_MD Sha224 = liftIO1 (primIO prim__EVP_sha224) >>= \x => pure (MkEVP_MD x)
-loadEVP_MD Sha256 = liftIO1 (primIO prim__EVP_sha256) >>= \x => pure (MkEVP_MD x)
-loadEVP_MD Sha384 = liftIO1 (primIO prim__EVP_sha384) >>= \x => pure (MkEVP_MD x)
-loadEVP_MD Sha512 = liftIO1 (primIO prim__EVP_sha512) >>= \x => pure (MkEVP_MD x)
 
 export
 EVP_MD_CTX_new : LinearIO io => L io {use=1} (EVP_MD_CTX EVP_MD_CTX_State_New)
@@ -156,24 +171,52 @@ EVP_DigestInit_ex (MkEVP_MD_CTX ctx_ptr) (MkEVP_MD md_ptr) (MkENGINE engine_ptr)
   pure1 (MkEVP_MD_CTX ctx_ptr)
 
 export
-EVP_DigestUpdate : LinearIO io => (1 _ : EVP_MD_CTX (EVP_MD_CTX_State_Initialized algo)) -> {size : Nat} -> (1 _ : APtr size) -> L io {use=1} (LPair (EVP_MD_CTX (EVP_MD_CTX_State_Initialized algo)) (APtr size))
-EVP_DigestUpdate (MkEVP_MD_CTX ctx_ptr) (MkAPtr data_ptr) = do
-  let data_count = cast $ natToInteger size
-  _ <- liftIO1 $ primIO $ prim__EVP_DigestUpdate ctx_ptr (castPtr data_ptr) data_count
-  pure1 $ (MkEVP_MD_CTX ctx_ptr) # (MkAPtr data_ptr)
+EVP_DigestUpdate
+  : LinearIO io
+  => (1 _ : EVP_MD_CTX (EVP_MD_CTX_State_Initialized algo))
+  -> {length : Nat}
+  -> (1 _ : CPtr (Bytes can_free True can_write length))
+  -> L io {use=1} (LPair (EVP_MD_CTX (EVP_MD_CTX_State_Initialized algo)) (CPtr (Bytes can_free True can_write length)))
+EVP_DigestUpdate (MkEVP_MD_CTX ctx_ptr) (MkCPtr data_ptr) = do
+  let data_count = cast $ natToInteger length
+  _ <- liftIO1 $ primIO $ prim__EVP_DigestUpdate ctx_ptr data_ptr data_count
+  pure1 $ (MkEVP_MD_CTX ctx_ptr) # (MkCPtr data_ptr)
 
 export
-EVP_DigestFinal_ex : LinearIO io => (1 _ : EVP_MD_CTX (EVP_MD_CTX_State_Initialized algo)) -> (1 digest_ret_ptr : APtr (hashAlgoDigestSize algo)) -> L io {use=1} (LPair (EVP_MD_CTX EVP_MD_CTX_State_Finalized) (APtr (hashAlgoDigestSize algo)))
-EVP_DigestFinal_ex (MkEVP_MD_CTX ctx_ptr) (MkAPtr digest_ret_ptr) = do
-  _ <- liftIO1 $ primIO $ prim__EVP_DigestFinal_ex ctx_ptr (castPtr digest_ret_ptr) nullptr
-  pure1 $ (MkEVP_MD_CTX ctx_ptr) # (MkAPtr digest_ret_ptr)
+EVP_DigestFinal_ex
+  : LinearIO io
+  => (1 _ : EVP_MD_CTX (EVP_MD_CTX_State_Initialized algo))
+  -> (1 digest_ret_ptr : CPtr (Bytes can_free can_read True (hashAlgoDigestSize algo)))
+  -> L io {use=1} (LPair (EVP_MD_CTX EVP_MD_CTX_State_Finalized) (CPtr (Bytes can_free can_read True (hashAlgoDigestSize algo))))
+EVP_DigestFinal_ex (MkEVP_MD_CTX ctx_ptr) (MkCPtr digest_ret_ptr) = do
+  _ <- liftIO1 $ primIO $ prim__EVP_DigestFinal_ex ctx_ptr digest_ret_ptr nullptr
+  pure1 $ (MkEVP_MD_CTX ctx_ptr) # (MkCPtr digest_ret_ptr)
 
--- TODO: how to determine the true hash algorithm
--- export
--- EVP_get_digestbyname
---   : LinearIO io
---   => (name : APtr size)
---   -> L io (Res Bool (\case
---      False => ()
---      True => (HashAlgo ** EVP_MD algo)
---    ))
+public export
+data ExDigestByName : Type where
+  NotImplementedYet : ExDigestByName
+  NotFound : ExDigestByName
+
+export
+Show ExDigestByName where
+  show NotImplementedYet = "not implemented yet"
+  show NotFound = "not found"
+
+export
+EVP_get_digestbyname
+  : LinearIO io
+  => (1 name : CPtr (NullTerminated can_free))
+  -> L io {use=1} (Res Bool (\case
+     False => Res ExDigestByName (\_ => CPtr (NullTerminated can_free))
+     True  => Res (DPair HashAlgo EVP_MD) (\_ => CPtr (NullTerminated can_free))
+   ))
+EVP_get_digestbyname (MkCPtr name_ptr) = do
+  md_ptr <- primIO $ prim__EVP_get_digestbyname name_ptr
+  case isNullPtr md_ptr of
+    True => pure1 $ False # (NotFound # MkCPtr name_ptr)
+    False => do
+      id_ <- primIO $ prim__EVP_MD_type md_ptr
+      printLn id_
+      pure1 $ case nidToHashAlgo (MkNID id_) of
+        Nothing => False # (NotImplementedYet # MkCPtr name_ptr)
+        Just algo => True # ((algo ** MkEVP_MD md_ptr) # MkCPtr name_ptr)

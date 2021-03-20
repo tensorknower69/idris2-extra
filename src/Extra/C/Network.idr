@@ -1,10 +1,10 @@
 ||| A replacement for Control.Linear.Network and use `Ptr`s instead of `String`s
-module Extra.Network
+module Extra.C.Network
 
 import Control.Linear.LIO
-import Extra.Bytes
-import Extra.FFI
+import Extra.C.CPtr
 import Extra.Proof
+import Data.Nat
 import Network.Socket
 import Network.Socket.Raw
 import public Network.Socket.Data
@@ -12,23 +12,23 @@ import public Network.Socket.Data
 ||| libc `send` in idris2
 export
 %foreign "C:send,libc"
-prim__socket_send : SocketDescriptor -> (ptr : AnyPtr) -> (nbytes : SizeT) -> (flags : Bits32) -> PrimIO SSizeT
+prim__socket_send : SocketDescriptor -> (ptr : Ptr CUInt8) -> (nbytes : SizeT) -> (flags : Bits32) -> PrimIO SSizeT
 
 ||| libc `recv` in idris2
 export
 %foreign "C:recv,libc"
-prim__socket_recv : SocketDescriptor -> (ptr : AnyPtr) -> (nbytes : SizeT) -> (flags : Bits32) -> PrimIO SSizeT
+prim__socket_recv : SocketDescriptor -> (ptr : Ptr CUInt8) -> (nbytes : SizeT) -> (flags : Bits32) -> PrimIO SSizeT
 
 ||| `prim__socket_send` with higher level primitives in idris2
 export
-socket_send : HasIO io => Socket.Data.Socket -> (data_ptr : AnyPtr) -> (data_size : SizeT) -> io SSizeT
+socket_send : HasIO io => Socket.Data.Socket -> (data_ptr : Ptr CUInt8) -> (data_size : SizeT) -> io SSizeT
 socket_send sock ptr nbytes = do
   ret <- primIO $ prim__socket_send sock.descriptor ptr nbytes 0
   pure ret
 
 ||| `prim__socket_recv` with higher level primitives in idris2
 export
-socket_recv : HasIO io => Socket.Data.Socket -> AnyPtr -> SizeT -> io SSizeT
+socket_recv : HasIO io => Socket.Data.Socket -> (data_ret_ptr : Ptr CUInt8) -> SizeT -> io SSizeT
 socket_recv sock ptr nbytes = do
   ret <- primIO $ prim__socket_recv sock.descriptor ptr nbytes 0
   pure ret
@@ -64,18 +64,20 @@ data Socket : SocketFamily -> SocketType -> Protocol -> SocketState -> Type wher
 
 ||| Construct a socket
 export
-newSocket :
-  LinearIO io
+newSocket
+  : LinearIO io
   => (family  : SocketFamily)
   -> (type : SocketType)
   -> (protocol : Protocol)
-  -> (success : (1 _ : Socket family type protocol Ready) -> L io ())
-  -> (fail : SocketError -> L io ())
-  -> L io ()
-newSocket family type protocol on_success on_fail = do
+  -> L io {use=1}
+    ( Res (Maybe SocketError) (\case
+      Just err => ()
+      Nothing  => Socket family type protocol Ready
+    ))
+newSocket family type protocol = do
   Right sock <- socket family type (protocolNumber protocol)
-    | Left err => on_fail err
-  on_success (MkSocket sock)
+    | Left err => pure1 $ Just err # ()
+  pure1 $ Nothing # (MkSocket sock)
 
 ||| Close a socket, you may want to call `done` too to kill the socket
 export
@@ -91,8 +93,8 @@ done (MkSocket sock) = pure ()
 
 ||| Bind a socket
 export
-bind :
-  LinearIO io
+bind
+  : LinearIO io
   => (1 _ : Socket family type protocol Ready)
   -> (addr : Maybe SocketAddress)
   -> (port : Port)
@@ -103,8 +105,8 @@ bind (MkSocket sock) addr port = do
 
 ||| Connect a socket to an address
 export
-connect :
-  LinearIO io
+connect
+  : LinearIO io
   => (1 _ : Socket family type protocol state)
   -> {auto 0 can_connect : CanConnect state}
   -> (addr : SocketAddress)
@@ -137,64 +139,49 @@ accept (MkSocket sock) = do
     | Left err => pure1 (False # (MkSocket sock))
   pure1 $ True # (MkSocket sock # MkSocket sock')
 
--- TODO: probably redundant
--- export
--- data SockBuf : (size : Nat) -> Type where
---   MkSockBuf : (bptr : BufPtr) -> SockBuf size
--- 
--- export
--- implementation ByteAccess SockBuf where
---   allocate size = do
---     bptr <- liftIO1 $ sock_alloc (cast $ natToInteger size)
---     pure1 $ MkSockBuf bptr
--- 
---   free (MkSockBuf bptr) = liftIO1 $ sock_free bptr
--- 
---   setBits8 index bits8 (MkSockBuf bptr) = do
---     let offset = cast {to = Int} $ finToInteger index
---     let int = cast {to = Int} bits8
---     liftIO1 $ sock_poke bptr offset int
---     pure1 $ MkSockBuf bptr
--- 
---   getBits8 index (MkSockBuf bptr) = do
---     int <- liftIO1 $ sock_peek bptr (cast $ finToInteger index)
---     let bits8 = cast {to = Bits8} int
---     pure1 $ MkSockBuf bptr # bits8
--- 
---   setBits8s
-
--- TODO: for some reason using String null-terminates
+-- TODO: handle return error
 ||| Send some data via a socket
 export
 send : (LinearIO io)
   => (1 sock : Socket family type protocol Open)
-  -> {size : Nat}
-  -> (1 _ : APtr size)
-  -> L io {use=1} (Res (APtr size, Bool) (\(_, bool) => Socket family type protocol (case bool of {False => Closed; True => Open})))
-send (MkSocket sock) (MkAPtr ptr) = do
-  _ <- liftIO1 $ socket_send sock ptr (cast $ natToInteger size)
-  pure1 ((MkAPtr ptr, True) # MkSocket sock)
+  -> {length : Nat}
+  -> (1 _ : CPtr (Bytes can_free True can_write length))
+  -> L io {use=1}
+      ( LPair
+        ( CPtr (Bytes can_free True can_write length)
+        )
+        ( Res Bool
+          ( \case
+            False => Socket family type protocol Closed
+            True  => Socket family type protocol Open
+          )
+        ) 
+      )
+send (MkSocket sock) (MkCPtr ptr) = do
+  _ <- liftIO1 $ socket_send sock ptr (cast $ natToInteger length)
+  pure1 $ MkCPtr ptr # (True # MkSocket sock)
 
--- TODO: optimize
--- TODO: for some reason using String null-terminates
-
+-- TODO: handle return error
 ||| Receive some data from a socket
 export
 recv
   : LinearIO io
   => (1 _ : Socket family type protocol Open)
-  -> (max_size : Nat)
-  -> L io {use=1} (Res (Maybe Nat) (\res =>
-       case res of
-         Nothing => Socket family type protocol Closed
-         Just size => LPair (Socket family type protocol Open) (APtr size)
+  -> {max_length : Nat}
+  -> (1 _ : CPtr (Bytes can_free can_read True max_length))
+  -> L io {use=1}
+       ( LPair
+         ( CPtr (Bytes can_free can_read True max_length) )
+         ( Res (Maybe (DPair Nat (\length => LTE length max_length))) ( \case
+           Nothing => Socket family type protocol Closed
+           Just _  => Socket family type protocol Open
+         ))
        )
-     )
-recv (MkSocket sock) max_size = do
-  MkAPtr ptr <- allocate max_size
-  size <- socket_recv sock ptr (cast $ natToInteger max_size)
-  let size = integerToNat (cast size)
-  pure1 $ (Just size) # (MkSocket sock # MkAPtr ptr)
+recv (MkSocket sock) (MkCPtr ptr) = do
+  length <- socket_recv sock ptr (cast $ natToInteger max_length)
+  let length = integerToNat (cast length)
+  let cptr = MkCPtr ptr
+  pure1 $ cptr # (Just (length ** believe_me ()) # MkSocket sock)
 
 -- TODO: implement udp stuff
 

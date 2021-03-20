@@ -2,10 +2,10 @@ module Extra.String
 
 import Data.Fin
 import Data.Nat
-import Data.Vect
 import Data.String
-import Extra.Binary
 import Data.String.Extra
+import Data.Vect
+import Extra.Binary
 import Extra.Fin
 import Extra.Proof
 
@@ -55,9 +55,14 @@ export
 hexString : Foldable f => f Bits8 -> String
 hexString = foldr (\x, str => let (a, b) = bits8ToHexChars x in strCons a $ strCons b $ str) ""
 
+export
+asciiString : Foldable f => f Bits8 -> String
+asciiString = foldr (\x, str => strCons (chr $ cast x) str) ""
+
 ||| Turn a string (NO UTF8) into a list of Bits8 by casting the ordinals of the chars of the string
 export
 unpackVect : (str : String) -> Vect (length str) Char
 unpackVect str = case toVect (length str) (unpack str) of
   Nothing => crash "Extra.String.unpackVect: impossible case"
   Just t => t
+
