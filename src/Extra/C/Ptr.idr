@@ -18,24 +18,13 @@ export
 %foreign libc "free"
 prim__free : AnyPtr -> PrimIO ()
 
-||| Peek a byte in a ptr
-export
-%foreign libextra "peek"
-prim__peek : Ptr CUInt8 -> SizeT -> PrimIO CUInt8
-
-||| Poke a byte in a ptr
-export
-%foreign libextra "poke"
-prim__poke : Ptr CUInt8 -> SizeT -> CUInt8 -> PrimIO ()
-
 export
 %foreign libextra "ptr_eq"
 prim__ptr_eq : AnyPtr -> AnyPtr -> PrimIO Bool
 
-||| Pointer equal
 export
-anyPtrEq : HasIO io => AnyPtr -> AnyPtr -> io Bool
-anyPtrEq a b = primIO $ prim__ptr_eq a b
+%foreign libextra "ptr_plus"
+prim__ptr_plus : AnyPtr -> SSizeT -> PrimIO AnyPtr
 
 ||| cast pointer
 export
@@ -51,6 +40,14 @@ export
 pretendPtr : Ptr a -> Ptr b
 pretendPtr = castPtr . forgetPtr
 
+export
+Eq AnyPtr where
+  a == b = unsafePerformIO $ primIO $ prim__ptr_eq a b
+
+export
+Eq (Ptr a) where
+  a == b = forgetPtr a == forgetPtr b
+
 ||| `nullptr` in C
 export
 nullanyptr : AnyPtr
@@ -62,17 +59,9 @@ nullptr : Ptr a
 nullptr = castPtr nullanyptr
 
 export
-isNullAnyPtr : AnyPtr -> Bool
-isNullAnyPtr = (== 1) . prim__nullAnyPtr
+plusAnyPtr : AnyPtr -> (offset : SSizeT) -> AnyPtr
+plusAnyPtr ptr ofs = unsafePerformIO $ primIO $ prim__ptr_plus ptr ofs
 
 export
-isNullPtr : Ptr a -> Bool
-isNullPtr = (== 1) . prim__nullPtr
-
-export
-peekPtr : HasIO io => Ptr CUInt8 -> SizeT -> io CUInt8
-peekPtr ptr index = primIO $ prim__peek ptr index
-
-export
-pokePtr : HasIO io => Ptr CUInt8 -> SizeT -> CUInt8 -> io ()
-pokePtr ptr index byte = primIO $ prim__poke ptr index byte
+plusPtr : Ptr a -> (offset : SSizeT) -> Ptr a
+plusPtr ptr ofs = castPtr $ plusAnyPtr (forgetPtr ptr) ofs

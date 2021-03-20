@@ -5,6 +5,7 @@ import Data.Vect
 import Extra.String
 import Extra.Proof
 import Extra.C.Ptr
+import Extra.C.Storable
 import public Control.Linear.LIO
 import public Extra.C.Types
 
@@ -71,7 +72,7 @@ pokeByte
   -> (byte : CUInt8)
   -> L io {use=1} (CPtr (Bytes can_free can_read True length))
 pokeByte (MkCPtr ptr) index byte = do
-  pokePtr ptr (cast $ natToInteger index) byte
+  poke (plusPtr ptr (cast $ natToInteger index)) byte
   pure1 $ MkCPtr ptr
 
 export
@@ -82,7 +83,7 @@ peekByte
   -> {auto 0 okay : LT index length}
   -> L io {use=1} (Res CUInt8 (\_ => CPtr (Bytes can_free True can_write length)))
 peekByte (MkCPtr ptr) index = do
-  byte <- peekPtr ptr (cast $ natToInteger index)
+  byte <- peek (plusPtr ptr (cast $ natToInteger index))
   pure1 $ (byte # MkCPtr ptr)
 
 export

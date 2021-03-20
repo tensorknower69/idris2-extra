@@ -212,7 +212,7 @@ EVP_get_digestbyname
    ))
 EVP_get_digestbyname (MkCPtr name_ptr) = do
   md_ptr <- primIO $ prim__EVP_get_digestbyname name_ptr
-  case isNullPtr md_ptr of
+  case md_ptr == nullptr of
     True => pure1 $ False # (NotFound # MkCPtr name_ptr)
     False => do
       id_ <- primIO $ prim__EVP_MD_type md_ptr

@@ -2,6 +2,25 @@ module Extra.C.Types
 
 -- TODO: c int,uint is not guaranteed to be 32 bit
 
+export
+data Float : Type where [external]
+
+public export
+CUInt8 : Type
+CUInt8 = Bits8
+
+public export
+CUInt16 : Type
+CUInt16 = Bits16
+
+public export
+CUInt32 : Type
+CUInt32 = Bits32
+
+public export
+CUInt64 : Type
+CUInt64 = Bits64
+
 ||| `size_t in C`
 public export
 SizeT : Type
@@ -12,30 +31,19 @@ public export
 SSizeT : Type
 SSizeT = Int
 
-||| `int32_t` in C
 public export
 CInt32 : Type
 CInt32 = Int
 
-||| `uint32_t` in C
-public export
-CUInt32 : Type
-CUInt32 = Bits32
-
 ||| `int` in C
 public export
 CInt : Type
-CInt = CInt32
+CInt = Int
 
 ||| `unsigned int` in C
 public export
 CUInt : Type
 CUInt = CUInt32
-
-||| `uint8_t` in C
-public export
-CUInt8 : Type
-CUInt8 = Bits8
 
 public export
 CChar : Type
@@ -48,6 +56,10 @@ CUChar = Bits8
 public export
 CString : Type
 CString = Ptr CChar
+
+public export
+CDouble : Type
+CDouble = Double
 
 --- TODO: this is unholy
 ||| `SizeT` but uses `Int` for `Data.Int.Order` reasons
