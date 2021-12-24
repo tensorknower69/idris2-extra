@@ -1,6 +1,5 @@
 ||| Prime, coprime, compositie types for `Nat`
-||| Extremely slow, but it totally works
-||| No references, I just big brained lol
+||| Extremely slow, but it totally works.
 module Extra.Nat.Prime
 
 import Data.Fin
@@ -60,12 +59,10 @@ data Primality : Nat -> Type where
   ItIsComposite : Composite n -> Primality n
 
 ||| This module's pseudo prime
-public export
 data PseudoPrime : Nat -> Nat -> Type where
   MkPseudoPrime : LTE 2 l -> LT l n -> ((x : Nat) -> LTE l x -> LT x n -> NotFactor x n) -> PseudoPrime l n
 
 ||| Constructs a trivial pseudo prime of a `Nat`
-public export
 trivial : (n : Nat) -> LTE 2 n -> PseudoPrime n (S n)
 trivial 0 lte_2_n = void $ absurd lte_2_n
 trivial 1 lte_2_n = void $ absurd lte_2_n
@@ -82,13 +79,11 @@ trivial (S (S n)) lte_2_n = MkPseudoPrime lte_2_n lteRefl lemma
     rewrite sym ccc in
     ProperRemExists 1 0 (gamma (S (S n)))
 
-||| Realize the a `PseudoPrime` is an actual `Prime`
-public export
+||| Realize that a `PseudoPrime` is an actual `Prime`
 realize : PseudoPrime 2 n -> Prime n
 realize (MkPseudoPrime _ _ prf) = MkPrime prf
 
 ||| Strengthen a `PseudoPrime`, used to prove some other stuff
-public export
 strengthen : {l : Nat} -> LTE 2 l -> PseudoPrime (S l) n -> NotFactor l n -> PseudoPrime l n
 strengthen lte (MkPseudoPrime _ lt_l_n prf) notfactor_l_n = MkPseudoPrime lte (lteSuccLeft lt_l_n) lemma
   where
